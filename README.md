@@ -35,6 +35,13 @@ The whitelist is enabled by default. Add both Java and Floodgate players
 explicitly before testing, and keep it enabled while the default ports are
 publicly reachable.
 
+RCON remains disabled. From an exec shell inside the Minecraft container, send
+administrative commands through the local console pipe, for example:
+
+```sh
+mc-send-to-console whitelist add PlayerName
+```
+
 ## World replacement
 
 Stop the server cleanly before copying or replacing world data. Back up the
