@@ -1,0 +1,6 @@
+.env
+data/
+world/
+*.mcworld
+*.zip
+!.env.example

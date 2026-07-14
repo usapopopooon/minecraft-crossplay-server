@@ -1,0 +1,49 @@
+services:
+  minecraft:
+    image: itzg/minecraft-server:stable
+    restart: unless-stopped
+    stop_grace_period: 2m
+    tty: true
+    stdin_open: true
+    environment:
+      EULA: "TRUE"
+      TYPE: PAPER
+      VERSION: "26.1.2"
+      TZ: Asia/Tokyo
+      MEMORY: 5G
+      SERVER_NAME: "${MINECRAFT_SERVER_NAME:-Minecraft Cross-play Server}"
+      MOTD: "${MINECRAFT_MOTD:-Minecraft cross-play test server}"
+      MODE: survival
+      DIFFICULTY: normal
+      MAX_PLAYERS: "10"
+      VIEW_DISTANCE: "8"
+      SIMULATION_DISTANCE: "6"
+      ONLINE_MODE: "TRUE"
+      ENABLE_WHITELIST: "TRUE"
+      ENFORCE_WHITELIST: "TRUE"
+      SPAWN_PROTECTION: "16"
+      ENABLE_RCON: "FALSE"
+      PLUGINS: |
+        https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
+        https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
+    ports:
+      - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:25565:25565/tcp"
+      - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/udp"
+    volumes:
+      - minecraft-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 7G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "mc-health"]
+      start_period: 3m
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  minecraft-data:
+    name: minecraft-crossplay-data
