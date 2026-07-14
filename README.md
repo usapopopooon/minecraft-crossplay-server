@@ -37,15 +37,15 @@ and a simulation distance of 5. Aikar JVM flags are enabled to reduce garbage
 collection pauses. Actual capacity still depends on CPU performance, explored
 chunks, entities, farms, and other workloads on the host.
 
-The whitelist is enabled by default. Add both Java and Floodgate players
-explicitly before testing, and keep it enabled while the default ports are
-publicly reachable.
+The whitelist is disabled by default. Enable it and add both Java and Floodgate
+players explicitly when access should be restricted.
 
 RCON remains disabled. From an exec shell inside the Minecraft container, send
 administrative commands through the local console pipe, for example:
 
 ```sh
 mc-send-to-console whitelist add PlayerName
+mc-send-to-console whitelist on
 ```
 
 ## World replacement
