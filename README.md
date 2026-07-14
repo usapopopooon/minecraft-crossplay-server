@@ -32,8 +32,8 @@ The named volume `minecraft-crossplay-data` stores the server, plugins,
 configuration, and world independently of application recreation.
 
 The default runtime profile targets up to 20 players on a small dedicated
-host: a 6 GiB Java heap, an 8 GiB container memory limit, a view distance of 7,
-and a simulation distance of 5. Aikar JVM flags are enabled to reduce garbage
+host: a 6 GiB Java heap, an 8 GiB container memory limit, a view distance of 16,
+and a simulation distance of 4. Aikar JVM flags are enabled to reduce garbage
 collection pauses. Actual capacity still depends on CPU performance, explored
 chunks, entities, farms, and other workloads on the host.
 
