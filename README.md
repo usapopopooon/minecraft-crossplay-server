@@ -2,6 +2,11 @@
 
 Paper, Geyser, and Floodgate configuration for a cross-play test server.
 
+Paper tracks the latest stable Minecraft release. Geyser, Floodgate,
+ViaVersion, and ViaBackwards are also resolved to their latest compatible
+release whenever the container starts. Redeploy or restart the application to
+pick up releases published after the previous start.
+
 ```text
 Java Edition:    <your-hostname>:25565
 Bedrock Edition: <your-hostname>:19132
@@ -33,9 +38,9 @@ publicly reachable.
 ## World replacement
 
 Stop the server cleanly before copying or replacing world data. Back up the
-entire `minecraft-crossplay-data` volume first. Paper 26.1 stores dimensions
-under the main world directory, so validate converted Bedrock data against a
-separate copy before replacing the test world.
+entire `minecraft-crossplay-data` volume first. Validate converted Bedrock data
+against a separate copy running the same Paper version before replacing the
+test world.
 
 Do not commit world data, Floodgate keys, player data, RCON credentials, or
 server-generated configuration.

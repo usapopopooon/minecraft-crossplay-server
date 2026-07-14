@@ -8,7 +8,7 @@ services:
     environment:
       EULA: "TRUE"
       TYPE: PAPER
-      VERSION: "26.1.2"
+      VERSION: LATEST
       TZ: Asia/Tokyo
       MEMORY: 5G
       SERVER_NAME: "${MINECRAFT_SERVER_NAME:-Minecraft Cross-play Server}"
@@ -26,6 +26,9 @@ services:
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
+      MODRINTH_PROJECTS: |
+        viaversion
+        viabackwards
     ports:
       - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:25565:25565/tcp"
       - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/udp"
