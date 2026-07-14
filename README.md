@@ -31,9 +31,9 @@ commit deployment-specific addresses or hostnames.
 The named volume `minecraft-crossplay-data` stores the server, plugins,
 configuration, and world independently of application recreation.
 
-The whitelist is enabled by default. Add both Java and Floodgate players
-explicitly before testing, and keep it enabled while the default ports are
-publicly reachable.
+The whitelist is disabled, so any authenticated Java or Floodgate player can
+join while the game ports are publicly reachable. Enable and enforce the
+whitelist before using this configuration for a private server.
 
 RCON remains disabled. From an exec shell inside the Minecraft container, send
 administrative commands through the local console pipe, for example:
