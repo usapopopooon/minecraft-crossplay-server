@@ -12,8 +12,8 @@ services:
       TZ: Asia/Tokyo
       MEMORY: 6G
       USE_AIKAR_FLAGS: "TRUE"
-      SERVER_NAME: "${MINECRAFT_SERVER_NAME:-Minecraft Cross-play Server}"
-      MOTD: "${MINECRAFT_MOTD:-Minecraft cross-play test server}"
+      SERVER_NAME: "${MINECRAFT_SERVER_NAME:-Chill Cafe cross-play server}"
+      MOTD: "${MINECRAFT_MOTD:-Chill Cafe cross-play server}"
       MODE: survival
       DIFFICULTY: normal
       MAX_PLAYERS: "20"

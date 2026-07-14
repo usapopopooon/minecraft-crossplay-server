@@ -1,6 +1,6 @@
-# Minecraft cross-play server
+# Chill Cafe cross-play server
 
-Paper, Geyser, and Floodgate configuration for a cross-play test server.
+Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 
 Paper tracks the latest stable Minecraft release. Geyser, Floodgate,
 ViaVersion, and ViaBackwards are also resolved to their latest compatible
@@ -53,7 +53,7 @@ mc-send-to-console whitelist add PlayerName
 Stop the server cleanly before copying or replacing world data. Back up the
 entire `minecraft-crossplay-data` volume first. Validate converted Bedrock data
 against a separate copy running the same Paper version before replacing the
-test world.
+live world.
 
 Do not commit world data, Floodgate keys, player data, RCON credentials, or
 server-generated configuration.
