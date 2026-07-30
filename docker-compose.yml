@@ -29,6 +29,9 @@ services:
       RCON_PASSWORD: "${MINECRAFT_RCON_PASSWORD:?Set the Minecraft RCON password}"
       BROADCAST_RCON_TO_OPS: "FALSE"
       CREATE_CONSOLE_IN_PIPE: "TRUE"
+      REMOVE_OLD_MODS: "TRUE"
+      REMOVE_OLD_MODS_INCLUDE: "Geyser-Spigot.jar"
+      REMOVE_OLD_MODS_DEPTH: "1"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/2.11.0/builds/1204/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
