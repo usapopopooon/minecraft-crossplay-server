@@ -2,10 +2,10 @@
 
 Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 
-Paper tracks the latest stable Minecraft release. Geyser, Floodgate,
-ViaVersion, and ViaBackwards are also resolved to their latest compatible
-release whenever the container starts. Redeploy or restart the application to
-pick up releases published after the previous start.
+Paper tracks the latest stable Minecraft release. Floodgate, ViaVersion, and
+ViaBackwards are resolved to their latest compatible release whenever the
+container starts. Geyser is temporarily pinned to Spigot build 1204 because
+Bedrock-to-Java skin display stopped working after build 1205 was installed.
 
 ```text
 Java Edition:    <your-hostname>:25565

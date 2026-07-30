@@ -30,7 +30,7 @@ services:
       BROADCAST_RCON_TO_OPS: "FALSE"
       CREATE_CONSOLE_IN_PIPE: "TRUE"
       PLUGINS: |
-        https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
+        https://download.geysermc.org/v2/projects/geyser/versions/2.11.0/builds/1204/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
       MODRINTH_PROJECTS: |
         viaversion
