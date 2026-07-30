@@ -37,16 +37,21 @@ and a simulation distance of 4. Aikar JVM flags are enabled to reduce garbage
 collection pauses. Actual capacity still depends on CPU performance, explored
 chunks, entities, farms, and other workloads on the host.
 
-The whitelist is disabled by default. Enable it and add both Java and Floodgate
-players explicitly when access should be restricted.
+The whitelist is enabled and enforced. `OVERRIDE_WHITELIST` remains disabled,
+so existing entries in `whitelist.json` are preserved across container starts.
+Add Java players with `whitelist` and Floodgate players with `fwhitelist`.
 
-RCON remains disabled. From an exec shell inside the Minecraft container, send
-administrative commands through the local console pipe, for example:
+The companion `mc-bot` manages registrations over RCON. RCON is only reachable
+through the external `minecraft-control` Docker network and is not published as
+a host port. Create that network once on the Docker host before deploying:
 
 ```sh
-mc-send-to-console whitelist add PlayerName
-mc-send-to-console whitelist on
+docker network create minecraft-control
 ```
+
+Set the same strong `MINECRAFT_RCON_PASSWORD` secret on this application and
+the mc-bot application. `MINECRAFT_CONTROL_NETWORK` can be changed when a
+different pre-created network name is required. Never publish TCP/25575.
 
 ## World replacement
 

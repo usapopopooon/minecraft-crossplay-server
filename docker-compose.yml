@@ -21,10 +21,13 @@ services:
       SIMULATION_DISTANCE: "4"
       ONLINE_MODE: "TRUE"
       ENFORCE_SECURE_PROFILE: "FALSE"
-      ENABLE_WHITELIST: "FALSE"
-      ENFORCE_WHITELIST: "FALSE"
+      ENABLE_WHITELIST: "TRUE"
+      ENFORCE_WHITELIST: "TRUE"
+      OVERRIDE_WHITELIST: "FALSE"
       SPAWN_PROTECTION: "16"
-      ENABLE_RCON: "FALSE"
+      ENABLE_RCON: "TRUE"
+      RCON_PASSWORD: "${MINECRAFT_RCON_PASSWORD:?Set the Minecraft RCON password}"
+      BROADCAST_RCON_TO_OPS: "FALSE"
       CREATE_CONSOLE_IN_PIPE: "TRUE"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
@@ -37,6 +40,9 @@ services:
       - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/udp"
     volumes:
       - minecraft-data:/data
+    networks:
+      - default
+      - minecraft-control
     deploy:
       resources:
         limits:
@@ -53,3 +59,8 @@ services:
 volumes:
   minecraft-data:
     name: minecraft-crossplay-data
+
+networks:
+  minecraft-control:
+    external: true
+    name: "${MINECRAFT_CONTROL_NETWORK:-minecraft-control}"
