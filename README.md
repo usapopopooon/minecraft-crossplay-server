@@ -2,11 +2,12 @@
 
 Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 
-Paper tracks the latest stable Minecraft release. Geyser, Floodgate,
-ViaVersion, and ViaBackwards are resolved to their latest compatible release
-whenever the container starts. Startup cleanup is limited to those four plugin
-JARs so persisted copies cannot prevent an update; unrelated plugins are not
-removed.
+The Minecraft runtime is pinned to the versions used for the 2026-08-05
+deployment while Enderman and experience behavior is investigated: Paper 26.2
+build 92, itzg/minecraft-server 2026.8.0, Geyser 2.11.1 build 1208, Floodgate
+2.2.5 build 138, ViaVersion 5.11.0, and ViaBackwards 5.11.0. Startup cleanup is
+limited to those four plugin JARs so persisted copies are replaced by the
+pinned artifacts; unrelated plugins are not removed.
 
 The local `UsapoEventBridge` Paper plugin is built into the server image. It
 listens for successful fishing catches, supported log/stem breaks, and natural
