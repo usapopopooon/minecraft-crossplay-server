@@ -16,7 +16,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                         voiceBonuses, playerId -> getServer().getPlayer(playerId) != null));
         if (!BonusToggle.isEnabled(System.getenv("USAPO_BONUSES_ENABLED"))) {
             getLogger().warning(
-                    "Fishing, woodcutting, natural experience, and voice XP bonuses disabled");
+                    "Fishing, woodcutting, mining, natural experience, and voice XP bonuses disabled");
             return;
         }
 
@@ -32,7 +32,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                         experience::flushAll,
                         EXPERIENCE_FLUSH_TICKS,
                         EXPERIENCE_FLUSH_TICKS);
-        getLogger().info("Fishing, woodcutting, and experience event bridge enabled");
+        getLogger().info("Fishing, woodcutting, mining, and experience event bridge enabled");
     }
 
     @Override

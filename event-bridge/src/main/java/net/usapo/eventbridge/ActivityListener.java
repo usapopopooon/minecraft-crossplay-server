@@ -39,14 +39,27 @@ final class ActivityListener implements Listener {
     private final ActivityPublisher publisher;
     private final ExperienceAccumulator experience;
     private final VoiceBonusRegistry voiceBonuses;
+    private final MiningBonus.Rewarder miningRewarder;
+    private final MiningBonus.EligibilityChecker miningEligibility;
 
     ActivityListener(
             ActivityPublisher publisher,
             ExperienceAccumulator experience,
             VoiceBonusRegistry voiceBonuses) {
+        this(publisher, experience, voiceBonuses, MiningBonus::award, MiningBonus::isEligible);
+    }
+
+    ActivityListener(
+            ActivityPublisher publisher,
+            ExperienceAccumulator experience,
+            VoiceBonusRegistry voiceBonuses,
+            MiningBonus.Rewarder miningRewarder,
+            MiningBonus.EligibilityChecker miningEligibility) {
         this.publisher = publisher;
         this.experience = experience;
         this.voiceBonuses = voiceBonuses;
+        this.miningRewarder = miningRewarder;
+        this.miningEligibility = miningEligibility;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -61,6 +74,26 @@ final class ActivityListener implements Listener {
         if (!event.isCancelled() && WOODCUTTING_BLOCKS.contains(event.getBlock().getType())) {
             publisher.publish(ActivityKind.WOODCUTTING, event.getPlayer(), 1);
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onMining(BlockBreakEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
+        Material material = event.getBlock().getType();
+        MiningBonus.Reward reward = MiningBonus.rewardFor(material);
+        if (reward == null) {
+            return;
+        }
+        if (!miningEligibility.isEligible(event.getPlayer(), event.getBlock())) {
+            return;
+        }
+        int awardedExperience = voiceBonuses.isActive(event.getPlayer().getUniqueId())
+                ? saturatingDouble(reward.experience())
+                : reward.experience();
+        experience.add(event.getPlayer(), reward.experience());
+        miningRewarder.award(event.getPlayer(), reward, awardedExperience);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)

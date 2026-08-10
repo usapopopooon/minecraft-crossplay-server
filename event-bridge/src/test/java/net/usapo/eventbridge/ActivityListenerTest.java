@@ -6,6 +6,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -20,8 +21,15 @@ final class ActivityListenerTest {
     private final ActivityPublisher publisher = (kind, player, amount) ->
             published.add(new PublishedActivity(kind, player, amount));
     private final ExperienceAccumulator experience = new ExperienceAccumulator(publisher);
-    private final ActivityListener listener =
-            new ActivityListener(publisher, experience, voiceBonuses);
+    private final List<MiningAward> miningAwards = new ArrayList<>();
+    private final ActivityListener listener = new ActivityListener(
+            publisher,
+            experience,
+            voiceBonuses,
+            (player, reward, awardedExperience) ->
+                    miningAwards.add(new MiningAward(player, reward, awardedExperience)),
+            (candidate, block) -> candidate.getGameMode() == GameMode.SURVIVAL
+                    && block.isPreferredTool(null));
     private final Player player = player();
 
     @Test
@@ -60,6 +68,60 @@ final class ActivityListenerTest {
         cancelled.setCancelled(true);
         listener.onBlockBreak(cancelled);
 
+        assertEquals(List.of(), published);
+    }
+
+    @Test
+    void eligibleOreAwardsTheCorrectPlayerAndPublishesItsBaseExperience() {
+        Player miner = miningPlayer(
+                UUID.fromString("33333333-3333-3333-3333-333333333333"),
+                GameMode.SURVIVAL);
+
+        listener.onMining(new BlockBreakEvent(block(Material.DIAMOND_ORE, true), miner));
+        experience.flushAll();
+
+        MiningBonus.Reward reward = MiningBonus.rewardFor(Material.DIAMOND_ORE);
+        assertEquals(List.of(new MiningAward(miner, reward, 50)), miningAwards);
+        assertEquals(
+                List.of(new PublishedActivity(ActivityKind.EXPERIENCE, miner, 50)), published);
+    }
+
+    @Test
+    void voiceBonusDoublesMiningRewardButPublishesOnlyItsBaseExperience() {
+        Player miner = miningPlayer(
+                UUID.fromString("44444444-4444-4444-4444-444444444444"),
+                GameMode.SURVIVAL);
+        voiceBonuses.activate(miner.getUniqueId());
+
+        listener.onMining(new BlockBreakEvent(block(Material.ANCIENT_DEBRIS, true), miner));
+        experience.flushAll();
+
+        MiningBonus.Reward reward = MiningBonus.rewardFor(Material.ANCIENT_DEBRIS);
+        assertEquals(List.of(new MiningAward(miner, reward, 200)), miningAwards);
+        assertEquals(
+                List.of(new PublishedActivity(ActivityKind.EXPERIENCE, miner, 100)), published);
+    }
+
+    @Test
+    void ineligibleAndCancelledOreBreaksDoNotAwardOrPublishExperience() {
+        Player creativeMiner = miningPlayer(
+                UUID.fromString("55555555-5555-5555-5555-555555555555"),
+                GameMode.CREATIVE);
+        Player survivalMiner = miningPlayer(
+                UUID.fromString("66666666-6666-6666-6666-666666666666"),
+                GameMode.SURVIVAL);
+
+        listener.onMining(
+                new BlockBreakEvent(block(Material.DIAMOND_ORE, true), creativeMiner));
+        listener.onMining(
+                new BlockBreakEvent(block(Material.DIAMOND_ORE, false), survivalMiner));
+        BlockBreakEvent cancelled =
+                new BlockBreakEvent(block(Material.DIAMOND_ORE, true), survivalMiner);
+        cancelled.setCancelled(true);
+        listener.onMining(cancelled);
+        experience.flushAll();
+
+        assertEquals(List.of(), miningAwards);
         assertEquals(List.of(), published);
     }
 
@@ -115,14 +177,35 @@ final class ActivityListenerTest {
                 });
     }
 
+    private static Player miningPlayer(UUID uniqueId, GameMode gameMode) {
+        return (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class<?>[] {Player.class},
+                (proxy, method, arguments) -> switch (method.getName()) {
+                    case "getName" -> "Miner";
+                    case "getUniqueId" -> uniqueId;
+                    case "getGameMode" -> gameMode;
+                    default -> EventLogPublisherTest.defaultValue(method.getReturnType());
+                });
+    }
+
     private static Block block(Material material) {
+        return block(material, false);
+    }
+
+    private static Block block(Material material, boolean preferredTool) {
         return (Block) Proxy.newProxyInstance(
                 Block.class.getClassLoader(),
                 new Class<?>[] {Block.class},
-                (proxy, method, arguments) -> method.getName().equals("getType")
-                        ? material
-                        : EventLogPublisherTest.defaultValue(method.getReturnType()));
+                (proxy, method, arguments) -> switch (method.getName()) {
+                    case "getType" -> material;
+                    case "isPreferredTool" -> preferredTool;
+                    default -> EventLogPublisherTest.defaultValue(method.getReturnType());
+                });
     }
 
     private record PublishedActivity(ActivityKind kind, Player player, int amount) {}
+
+    private record MiningAward(
+            Player player, MiningBonus.Reward reward, int awardedExperience) {}
 }

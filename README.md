@@ -12,18 +12,23 @@ pinned artifacts; unrelated plugins are not removed.
 The local `UsapoEventBridge` Paper plugin is built into the server image. It
 listens for successful fishing catches, supported log/stem breaks, and natural
 experience gains, then writes UUID-based structured events to the normal
-Minecraft log. Experience is batched per player once every five seconds to avoid one
-log record per orb. The companion `mc-bot` consumes those events without
+Minecraft log. Survival players also receive an immediate mining bonus for ore
+broken with a preferred non-Silk-Touch tool: coal, Nether quartz, and Nether
+gold award 5 XP; iron and copper award 10; gold, redstone, and lapis award 20;
+diamond and emerald award 50; and ancient debris awards 100. Fortune does not
+multiply this fixed per-block bonus, and crafted storage blocks are excluded.
+Experience is batched per player once every five seconds to avoid one log record
+per orb. The companion `mc-bot` consumes those events without
 continuously polling scoreboards or experience over RCON. Active voice bonus
 experience is applied inside the Paper event, so it does not issue an RCON
 command per gain. The plugin runs only on the server; clients do not install
 anything.
 
 All event-bridge bonuses can be disabled without removing the plugin by setting
-`USAPO_BONUSES_ENABLED=false`. This stops the fishing, woodcutting, natural
-experience, and voice XP listeners while leaving unrelated RCON, whitelist,
-and shop functions available. The Compose default is temporarily `false` for
-performance diagnosis; change it back to `true` to restore the bonuses.
+`USAPO_BONUSES_ENABLED=false`. This stops the fishing, woodcutting, mining,
+natural experience, and voice XP listeners while leaving unrelated RCON,
+whitelist, and shop functions available. The Compose default is `true`; use
+`false` only for temporary performance diagnosis.
 
 ```text
 Java Edition:    <your-hostname>:25565
