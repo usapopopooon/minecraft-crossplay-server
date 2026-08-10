@@ -18,6 +18,12 @@ experience is applied inside the Paper event, so it does not issue an RCON
 command per gain. The plugin runs only on the server; clients do not install
 anything.
 
+All event-bridge bonuses can be disabled without removing the plugin by setting
+`USAPO_BONUSES_ENABLED=false`. This stops the fishing, woodcutting, natural
+experience, and voice XP listeners while leaving unrelated RCON, whitelist,
+and shop functions available. The Compose default is temporarily `false` for
+performance diagnosis; change it back to `true` to restore the bonuses.
+
 ```text
 Java Edition:    <your-hostname>:25565
 Bedrock Edition: <your-hostname>:19132

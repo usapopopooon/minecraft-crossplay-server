@@ -32,6 +32,8 @@ services:
       RCON_PASSWORD: "${MINECRAFT_RCON_PASSWORD:?Set the Minecraft RCON password}"
       BROADCAST_RCON_TO_OPS: "FALSE"
       CREATE_CONSOLE_IN_PIPE: "TRUE"
+      # Temporary diagnostic switch. Change the default back to true to restore all bonuses.
+      USAPO_BONUSES_ENABLED: "${USAPO_BONUSES_ENABLED:-false}"
       REMOVE_OLD_MODS: "TRUE"
       REMOVE_OLD_MODS_INCLUDE: "Geyser-Spigot.jar,floodgate-spigot.jar,ViaVersion-*.jar,ViaBackwards-*.jar"
       REMOVE_OLD_MODS_DEPTH: "1"

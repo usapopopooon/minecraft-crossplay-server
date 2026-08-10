@@ -11,14 +11,20 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         VoiceBonusRegistry voiceBonuses = new VoiceBonusRegistry();
+        Objects.requireNonNull(getCommand("usapo-event-bridge"))
+                .setExecutor(new VoiceBonusCommand(
+                        voiceBonuses, playerId -> getServer().getPlayer(playerId) != null));
+        if (!BonusToggle.isEnabled(System.getenv("USAPO_BONUSES_ENABLED"))) {
+            getLogger().warning(
+                    "Fishing, woodcutting, natural experience, and voice XP bonuses disabled");
+            return;
+        }
+
         ActivityPublisher publisher = new EventLogPublisher(getLogger()::info);
         experience = new ExperienceAccumulator(publisher);
         getServer()
                 .getPluginManager()
                 .registerEvents(new ActivityListener(publisher, experience, voiceBonuses), this);
-        Objects.requireNonNull(getCommand("usapo-event-bridge"))
-                .setExecutor(new VoiceBonusCommand(
-                        voiceBonuses, playerId -> getServer().getPlayer(playerId) != null));
         getServer()
                 .getScheduler()
                 .runTaskTimer(
