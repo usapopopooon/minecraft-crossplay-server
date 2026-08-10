@@ -1,0 +1,14 @@
+name: UsapoEventBridge
+version: 1.0.0
+main: net.usapo.eventbridge.UsapoEventBridgePlugin
+description: Emits fishing, woodcutting, and natural experience activity for mc-bot.
+author: usapo
+api-version: '26.2'
+commands:
+  usapo-event-bridge:
+    description: Controls internal mc-bot integration state.
+    usage: /usapo-event-bridge voice-bonus <uuid> <on|off>
+    permission: usapo.eventbridge.control
+permissions:
+  usapo.eventbridge.control:
+    default: op

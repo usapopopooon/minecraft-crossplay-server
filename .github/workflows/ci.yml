@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: event-bridge/pom.xml
+      - name: Test Paper event bridge
+        run: mvn --batch-mode --no-transfer-progress --file event-bridge/pom.xml verify
+      - name: Validate Docker Compose
+        env:
+          MINECRAFT_BIND_IP: 127.0.0.1
+          MINECRAFT_RCON_PASSWORD: ci-placeholder
+        run: docker compose config --quiet

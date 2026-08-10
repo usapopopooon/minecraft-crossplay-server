@@ -1,6 +1,9 @@
 services:
   minecraft:
-    image: itzg/minecraft-server:stable
+    build:
+      context: .
+      pull: true
+    image: minecraft-crossplay-server:local
     restart: unless-stopped
     stop_grace_period: 2m
     tty: true

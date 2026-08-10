@@ -8,6 +8,16 @@ whenever the container starts. Startup cleanup is limited to those four plugin
 JARs so persisted copies cannot prevent an update; unrelated plugins are not
 removed.
 
+The local `UsapoEventBridge` Paper plugin is built into the server image. It
+listens for successful fishing catches, supported log/stem breaks, and natural
+experience gains, then writes UUID-based structured events to the normal
+Minecraft log. Experience is batched per player once every five seconds to avoid one
+log record per orb. The companion `mc-bot` consumes those events without
+continuously polling scoreboards or experience over RCON. Active voice bonus
+experience is applied inside the Paper event, so it does not issue an RCON
+command per gain. The plugin runs only on the server; clients do not install
+anything.
+
 ```text
 Java Edition:    <your-hostname>:25565
 Bedrock Edition: <your-hostname>:19132
@@ -24,6 +34,10 @@ Build pack: Docker Compose
 Docker Compose location: /docker-compose.yml
 Auto deploy: disabled
 ```
+
+The Compose build compiles and tests `event-bridge` before producing the server
+image. Applying a newly built plugin requires a planned Minecraft restart;
+building or committing the image alone does not load it into a running server.
 
 Set `MINECRAFT_BIND_IP` in Coolify to the host address that should accept game
 traffic. Optionally set `MINECRAFT_SERVER_NAME` and `MINECRAFT_MOTD`. Do not

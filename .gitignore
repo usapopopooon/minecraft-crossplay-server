@@ -3,4 +3,5 @@ data/
 world/
 *.mcworld
 *.zip
+event-bridge/target/
 !.env.example
