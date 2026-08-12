@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 final class EmeraldExchangePublisher {
-    static final String PREFIX = "USAPO_EMERALD_EXCHANGE|1|";
+    static final String PREFIX = "USAPO_EMERALD_EXCHANGE|2|";
 
     private final Consumer<String> logSink;
     private final Clock clock;

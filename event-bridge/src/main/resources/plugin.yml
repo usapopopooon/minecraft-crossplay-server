@@ -9,7 +9,7 @@ commands:
     description: Controls internal mc-bot integration state.
     usage: |-
       /usapo-event-bridge voice-bonus <uuid> <on|off>
-      /usapo-event-bridge emerald-diamond <uuid> <16|32|64> <request-uuid>
+      /usapo-event-bridge emerald-diamond-v2 <uuid> <32|64> <request-uuid>
     permission: usapo.eventbridge.control
 permissions:
   usapo.eventbridge.control:

@@ -10,7 +10,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 final class EmeraldDiamondCommand implements CommandExecutor {
-    private static final Set<Integer> ALLOWED_EMERALD_COUNTS = Set.of(16, 32, 64);
+    private static final Set<Integer> ALLOWED_EMERALD_COUNTS = Set.of(32, 64);
+    private static final int EMERALDS_PER_DIAMOND = 32;
 
     @FunctionalInterface
     interface ExchangeOperation {
@@ -41,7 +42,7 @@ final class EmeraldDiamondCommand implements CommandExecutor {
             @NotNull Command command,
             @NotNull String label,
             @NotNull String[] arguments) {
-        if (arguments.length != 4 || !arguments[0].equals("emerald-diamond")) {
+        if (arguments.length != 4 || !arguments[0].equals("emerald-diamond-v2")) {
             return false;
         }
 
@@ -57,13 +58,19 @@ final class EmeraldDiamondCommand implements CommandExecutor {
             return true;
         }
         if (!ALLOWED_EMERALD_COUNTS.contains(emeraldCount)) {
-            sender.sendMessage("Emerald count must be 16, 32, or 64");
+            sender.sendMessage("Emerald count must be 32 or 64");
             return true;
         }
 
         Player player = playerLookup.apply(playerId);
         if (player == null) {
-            sendResult(sender, requestId, "player_offline", emeraldCount, emeraldCount / 16, false);
+            sendResult(
+                    sender,
+                    requestId,
+                    "player_offline",
+                    emeraldCount,
+                    emeraldCount / EMERALDS_PER_DIAMOND,
+                    false);
             return true;
         }
 
@@ -89,7 +96,7 @@ final class EmeraldDiamondCommand implements CommandExecutor {
             int emeraldCount,
             int diamondCount,
             boolean duplicate) {
-        sender.sendMessage("USAPO_EMERALD_EXCHANGE_RESULT|1|"
+        sender.sendMessage("USAPO_EMERALD_EXCHANGE_RESULT|2|"
                 + requestId
                 + "|"
                 + status

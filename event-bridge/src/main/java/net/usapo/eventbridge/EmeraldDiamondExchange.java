@@ -14,8 +14,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
 final class EmeraldDiamondExchange {
-    private static final Set<Integer> ALLOWED_EMERALD_COUNTS = Set.of(16, 32, 64);
-    private static final int EMERALDS_PER_DIAMOND = 16;
+    private static final Set<Integer> ALLOWED_EMERALD_COUNTS = Set.of(32, 64);
+    private static final int EMERALDS_PER_DIAMOND = 32;
     private static final int HISTORY_LIMIT = 32;
 
     enum Status {

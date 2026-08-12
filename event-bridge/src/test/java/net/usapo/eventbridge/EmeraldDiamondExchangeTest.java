@@ -25,10 +25,10 @@ final class EmeraldDiamondExchangeTest {
         EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 32);
 
         assertEquals(EmeraldDiamondExchange.Status.COMPLETED, result.status());
-        assertEquals(2, result.diamondCount());
+        assertEquals(1, result.diamondCount());
         assertFalse(result.duplicate());
         assertEquals(0, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
-        assertEquals(2, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
+        assertEquals(1, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
         assertEquals(12, state.count(EmeraldDiamondExchange.ItemKind.OTHER));
         assertEquals(32, state.completed.get(REQUEST_ID));
         assertEquals(1, state.applyCount);
@@ -41,13 +41,13 @@ final class EmeraldDiamondExchangeTest {
                 slot(EmeraldDiamondExchange.ItemKind.EMERALD, 32),
                 EmeraldDiamondExchange.InventorySlot.empty());
 
-        EmeraldDiamondExchange.Result first = exchange.exchange(state, REQUEST_ID, 16);
-        EmeraldDiamondExchange.Result retry = exchange.exchange(state, REQUEST_ID, 16);
+        EmeraldDiamondExchange.Result first = exchange.exchange(state, REQUEST_ID, 32);
+        EmeraldDiamondExchange.Result retry = exchange.exchange(state, REQUEST_ID, 32);
 
         assertFalse(first.duplicate());
         assertTrue(retry.duplicate());
         assertEquals(EmeraldDiamondExchange.Status.COMPLETED, retry.status());
-        assertEquals(16, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
+        assertEquals(0, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
         assertEquals(1, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
         assertEquals(1, state.applyCount);
     }
@@ -56,13 +56,13 @@ final class EmeraldDiamondExchangeTest {
     void insufficientEmeraldsNeverMutatesInventoryOrHistory() {
         EmeraldDiamondExchange exchange = new EmeraldDiamondExchange();
         FakeState state = new FakeState(
-                slot(EmeraldDiamondExchange.ItemKind.EMERALD, 15),
+                slot(EmeraldDiamondExchange.ItemKind.EMERALD, 31),
                 EmeraldDiamondExchange.InventorySlot.empty());
 
-        EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 16);
+        EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 32);
 
         assertEquals(EmeraldDiamondExchange.Status.INSUFFICIENT_EMERALDS, result.status());
-        assertEquals(15, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
+        assertEquals(31, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
         assertEquals(0, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
         assertEquals(0, state.applyCount);
         assertTrue(state.completed.isEmpty());
@@ -75,7 +75,7 @@ final class EmeraldDiamondExchangeTest {
                 slot(EmeraldDiamondExchange.ItemKind.EMERALD, 64),
                 slot(EmeraldDiamondExchange.ItemKind.OTHER, 64));
 
-        EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 16);
+        EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 32);
 
         assertEquals(EmeraldDiamondExchange.Status.INVENTORY_FULL, result.status());
         assertEquals(64, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
@@ -91,10 +91,10 @@ final class EmeraldDiamondExchangeTest {
                 slot(EmeraldDiamondExchange.ItemKind.EMERALD, 64),
                 slot(EmeraldDiamondExchange.ItemKind.DIAMOND, 63));
 
-        EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 16);
+        EmeraldDiamondExchange.Result result = exchange.exchange(state, REQUEST_ID, 32);
 
         assertEquals(EmeraldDiamondExchange.Status.COMPLETED, result.status());
-        assertEquals(48, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
+        assertEquals(32, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
         assertEquals(64, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
     }
 
@@ -105,7 +105,8 @@ final class EmeraldDiamondExchangeTest {
                 slot(EmeraldDiamondExchange.ItemKind.EMERALD, 64),
                 EmeraldDiamondExchange.InventorySlot.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> exchange.exchange(state, REQUEST_ID, 1));
+        assertThrows(
+                IllegalArgumentException.class, () -> exchange.exchange(state, REQUEST_ID, 16));
         assertEquals(64, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
     }
 
@@ -116,11 +117,11 @@ final class EmeraldDiamondExchangeTest {
                 slot(EmeraldDiamondExchange.ItemKind.EMERALD, 64),
                 EmeraldDiamondExchange.InventorySlot.empty());
 
-        exchange.exchange(state, REQUEST_ID, 16);
+        exchange.exchange(state, REQUEST_ID, 32);
 
         assertThrows(
-                IllegalArgumentException.class, () -> exchange.exchange(state, REQUEST_ID, 32));
-        assertEquals(48, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
+                IllegalArgumentException.class, () -> exchange.exchange(state, REQUEST_ID, 64));
+        assertEquals(32, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
         assertEquals(1, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
     }
 

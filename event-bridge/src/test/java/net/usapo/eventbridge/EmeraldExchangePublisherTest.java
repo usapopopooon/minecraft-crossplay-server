@@ -23,11 +23,11 @@ final class EmeraldExchangePublisherTest {
                 messages::add,
                 Clock.fixed(Instant.parse("2026-08-11T00:00:00Z"), ZoneOffset.UTC));
 
-        publisher.publish(requestId, player, 32, 2);
+        publisher.publish(requestId, player, 32, 1);
 
         assertEquals(
-                List.of("USAPO_EMERALD_EXCHANGE|1|" + requestId + "|" + playerId
-                        + "|Lll1a2kxOTkx|32|2|1786406400000"),
+                List.of("USAPO_EMERALD_EXCHANGE|2|" + requestId + "|" + playerId
+                        + "|Lll1a2kxOTkx|32|1|1786406400000"),
                 messages);
     }
 

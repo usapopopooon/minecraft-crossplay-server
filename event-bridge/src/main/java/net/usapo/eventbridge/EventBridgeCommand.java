@@ -23,7 +23,7 @@ final class EventBridgeCommand implements CommandExecutor {
         if (arguments.length > 0 && arguments[0].equals("voice-bonus")) {
             return voiceBonus.onCommand(sender, command, label, arguments);
         }
-        if (arguments.length > 0 && arguments[0].equals("emerald-diamond")) {
+        if (arguments.length > 0 && arguments[0].equals("emerald-diamond-v2")) {
             return emeraldDiamond.onCommand(sender, command, label, arguments);
         }
         return false;

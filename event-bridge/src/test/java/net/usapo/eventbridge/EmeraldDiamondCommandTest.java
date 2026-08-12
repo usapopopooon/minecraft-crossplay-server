@@ -1,6 +1,7 @@
 package net.usapo.eventbridge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
@@ -31,7 +32,7 @@ final class EmeraldDiamondCommandTest {
                     exchangeArguments.set(
                             foundPlayer.getName() + "|" + requestId + "|" + emeraldCount);
                     return new EmeraldDiamondExchange.Result(
-                            EmeraldDiamondExchange.Status.COMPLETED, emeraldCount, 2, false);
+                            EmeraldDiamondExchange.Status.COMPLETED, emeraldCount, 1, false);
                 },
                 (requestId, foundPlayer, emeraldCount, diamondCount) -> notificationArguments.set(
                         requestId + "|" + foundPlayer.getName() + "|" + emeraldCount + "|"
@@ -42,14 +43,14 @@ final class EmeraldDiamondCommandTest {
                 null,
                 "usapo-event-bridge",
                 new String[] {
-                    "emerald-diamond", PLAYER_ID.toString(), "32", REQUEST_ID.toString()
+                    "emerald-diamond-v2", PLAYER_ID.toString(), "32", REQUEST_ID.toString()
                 }));
 
         assertEquals("Steve|" + REQUEST_ID + "|32", exchangeArguments.get());
-        assertEquals(REQUEST_ID + "|Steve|32|2", notificationArguments.get());
+        assertEquals(REQUEST_ID + "|Steve|32|1", notificationArguments.get());
         assertEquals(
-                List.of("USAPO_EMERALD_EXCHANGE_RESULT|1|" + REQUEST_ID
-                        + "|completed|32|2|new"),
+                List.of("USAPO_EMERALD_EXCHANGE_RESULT|2|" + REQUEST_ID
+                        + "|completed|32|1|new"),
                 messages);
     }
 
@@ -70,13 +71,37 @@ final class EmeraldDiamondCommandTest {
                 null,
                 "usapo-event-bridge",
                 new String[] {
-                    "emerald-diamond", PLAYER_ID.toString(), "16", REQUEST_ID.toString()
+                    "emerald-diamond-v2", PLAYER_ID.toString(), "32", REQUEST_ID.toString()
                 }));
 
         assertEquals(
-                List.of("USAPO_EMERALD_EXCHANGE_RESULT|1|" + REQUEST_ID
-                        + "|player_offline|16|1|new"),
+                List.of("USAPO_EMERALD_EXCHANGE_RESULT|2|" + REQUEST_ID
+                        + "|player_offline|32|1|new"),
                 messages);
+    }
+
+    @Test
+    void rejectsLegacyRateCommandInsteadOfApplyingTheOldRate() {
+        List<String> messages = new ArrayList<>();
+        EmeraldDiamondCommand command = new EmeraldDiamondCommand(
+                playerId -> {
+                    throw new AssertionError("legacy command must not look up a player");
+                },
+                (player, requestId, emeraldCount) -> {
+                    throw new AssertionError("legacy command must not exchange items");
+                },
+                (requestId, player, emeraldCount, diamondCount) -> {
+                    throw new AssertionError("legacy command must not notify");
+                });
+
+        assertFalse(command.onCommand(
+                sender(messages),
+                null,
+                "usapo-event-bridge",
+                new String[] {
+                    "emerald-diamond", PLAYER_ID.toString(), "16", REQUEST_ID.toString()
+                }));
+        assertTrue(messages.isEmpty());
     }
 
     @Test
@@ -95,12 +120,12 @@ final class EmeraldDiamondCommandTest {
                 null,
                 "usapo-event-bridge",
                 new String[] {
-                    "emerald-diamond", PLAYER_ID.toString(), "16", REQUEST_ID.toString()
+                    "emerald-diamond-v2", PLAYER_ID.toString(), "32", REQUEST_ID.toString()
                 }));
 
         assertEquals(
-                List.of("USAPO_EMERALD_EXCHANGE_RESULT|1|" + REQUEST_ID
-                        + "|completed|16|1|duplicate"),
+                List.of("USAPO_EMERALD_EXCHANGE_RESULT|2|" + REQUEST_ID
+                        + "|completed|32|1|duplicate"),
                 messages);
     }
 
