@@ -1,6 +1,9 @@
 package net.usapo.eventbridge;
 
 import java.util.Objects;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.NamespacedKey;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class UsapoEventBridgePlugin extends JavaPlugin {
@@ -11,9 +14,31 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         VoiceBonusRegistry voiceBonuses = new VoiceBonusRegistry();
+        EmeraldDiamondExchange emeraldExchange = new EmeraldDiamondExchange();
+        NamespacedKey exchangeHistoryKey = new NamespacedKey(this, "emerald_exchange_history");
+        EmeraldExchangePublisher exchangePublisher =
+                new EmeraldExchangePublisher(getLogger()::info);
+        VoiceBonusCommand voiceBonusCommand = new VoiceBonusCommand(
+                voiceBonuses, playerId -> getServer().getPlayer(playerId) != null);
+        EmeraldDiamondCommand emeraldDiamondCommand = new EmeraldDiamondCommand(
+                playerId -> getServer().getPlayer(playerId),
+                (player, requestId, emeraldCount) -> emeraldExchange.exchange(
+                        new EmeraldDiamondExchange.BukkitPlayerState(player, exchangeHistoryKey),
+                        requestId,
+                        emeraldCount),
+                (requestId, player, emeraldCount, diamondCount) -> {
+                    exchangePublisher.publish(requestId, player, emeraldCount, diamondCount);
+                    getServer().broadcast(Component.text(player.getName(), NamedTextColor.YELLOW)
+                            .append(Component.text("さんがエメラルド x" + emeraldCount))
+                            .append(Component.text("を交換し、ダイヤモンド x" + diamondCount,
+                                    NamedTextColor.AQUA))
+                            .append(Component.text("を獲得しました!")));
+                    player.sendActionBar(Component.text(
+                            "交換完了: エメラルド x" + emeraldCount + " → ダイヤモンド x" + diamondCount,
+                            NamedTextColor.AQUA));
+                });
         Objects.requireNonNull(getCommand("usapo-event-bridge"))
-                .setExecutor(new VoiceBonusCommand(
-                        voiceBonuses, playerId -> getServer().getPlayer(playerId) != null));
+                .setExecutor(new EventBridgeCommand(voiceBonusCommand, emeraldDiamondCommand));
         if (!BonusToggle.isEnabled(System.getenv("USAPO_BONUSES_ENABLED"))) {
             getLogger().warning(
                     "Fishing, woodcutting, mining, natural experience, and voice XP bonuses disabled");

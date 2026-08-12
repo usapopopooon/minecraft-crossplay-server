@@ -30,6 +30,14 @@ natural experience, and voice XP listeners while leaving unrelated RCON,
 whitelist, and shop functions available. The Compose default is `true`; use
 `false` only for temporary performance diagnosis.
 
+The resource shop can atomically exchange emeralds from an online linked
+player's inventory for diamonds at a fixed rate of 16:1 (16/32/64 emeralds for
+1/2/4 diamonds). The plugin verifies both the input and output inventory before
+changing either, rejects a full output inventory without consuming emeralds,
+and stores recent request UUIDs in player data so an RCON response retry cannot
+repeat an exchange. Successful exchanges are announced in Minecraft and
+written as a UUID-based structured audit event for mc-bot's Discord log.
+
 ```text
 Java Edition:    <your-hostname>:25565
 Bedrock Edition: <your-hostname>:19132
