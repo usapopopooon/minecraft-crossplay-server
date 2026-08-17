@@ -67,7 +67,7 @@ final class EmeraldDiamondExchange {
 
     Result exchange(PlayerState state, UUID requestId, int emeraldCount) {
         if (!ALLOWED_EMERALD_COUNTS.contains(emeraldCount)) {
-            throw new IllegalArgumentException("emerald count must be 16, 32, or 64");
+            throw new IllegalArgumentException("emerald count must be 32 or 64");
         }
         int diamondCount = emeraldCount / EMERALDS_PER_DIAMOND;
         Integer completedEmeraldCount = state.completedEmeraldCount(requestId);

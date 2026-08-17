@@ -31,12 +31,37 @@ whitelist, and shop functions available. The Compose default is `true`; use
 `false` only for temporary performance diagnosis.
 
 The resource shop can atomically exchange emeralds from an online linked
-player's inventory for diamonds at a fixed rate of 16:1 (16/32/64 emeralds for
-1/2/4 diamonds). The plugin verifies both the input and output inventory before
+player's inventory for diamonds at a fixed rate of 32:1 (32/64 emeralds for
+1/2 diamonds). The plugin verifies both the input and output inventory before
 changing either, rejects a full output inventory without consuming emeralds,
 and stores recent request UUIDs in player data so an RCON response retry cannot
 repeat an exchange. Successful exchanges are announced in Minecraft and
 written as a UUID-based structured audit event for mc-bot's Discord log.
+
+Linked players can open the shared exchange menu with `/exchange`. On
+Floodgate/Bedrock clients this opens a touch-friendly menu and confirmation
+screen for server XP to Minecraft XP, server XP to resources, held emeralds to
+diamonds, and a private XP balance check. Java clients, or clients where a form
+cannot be shown, can use `/exchange xp <50|250|500|5000>`,
+`/exchange resource <diamond|emerald> <count>`,
+`/exchange emerald-diamond <32|64>`, and `/exchange balance`. The request carries
+the exact displayed cost, but mc-bot checks it again against level-bot's current
+shop before spending XP. Price changes are rejected and the player is asked to
+open the menu again. Results are sent privately to the requesting player; the
+existing completed-exchange announcements remain unchanged. No client add-on
+is required.
+
+Linked players can start the shared XP item gacha from inside the game with
+`/gacha`. Floodgate/Bedrock players receive a touch-friendly selection form and
+a second confirmation before spending XP. Java players, or Bedrock players if
+forms are unavailable, use `/gacha normal` for the 100 XP draw or `/gacha rare`
+for the 1,000 XP R-or-higher draw. Both entry points use mc-bot's existing JST
+daily limit of three total draws, reward table, XP reservation, public result
+notifications, and duplicate-delivery protection. Status and errors are sent
+only to the requesting player in Minecraft. The confirmed price is included in
+the structured request; mc-bot rejects a legacy request or a price mismatch
+without spending XP, so separately deployed plugin versions cannot silently
+change the confirmed charge. No client add-on is required.
 
 ```text
 Java Edition:    <your-hostname>:25565

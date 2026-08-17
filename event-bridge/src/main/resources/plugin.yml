@@ -4,7 +4,17 @@ main: net.usapo.eventbridge.UsapoEventBridgePlugin
 description: Emits activity for mc-bot and performs atomic resource exchanges.
 author: usapo
 api-version: '26.2'
+softdepend: [floodgate]
 commands:
+  exchange:
+    description: Opens the Minecraft exchange menu.
+    usage: /exchange [xp|resource|emerald-diamond|balance]
+    permission: usapo.exchange.use
+  gacha:
+    description: Opens the Minecraft item gacha.
+    usage: /gacha [normal|rare]
+    aliases: [itemgacha]
+    permission: usapo.gacha.use
   usapo-event-bridge:
     description: Controls internal mc-bot integration state.
     usage: |-
@@ -12,5 +22,9 @@ commands:
       /usapo-event-bridge emerald-diamond-v2 <uuid> <32|64> <request-uuid>
     permission: usapo.eventbridge.control
 permissions:
+  usapo.exchange.use:
+    default: true
+  usapo.gacha.use:
+    default: true
   usapo.eventbridge.control:
     default: op

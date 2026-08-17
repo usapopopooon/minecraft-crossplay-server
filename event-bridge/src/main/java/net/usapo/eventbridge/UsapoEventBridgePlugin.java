@@ -4,6 +4,7 @@ import java.util.Objects;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.NamespacedKey;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class UsapoEventBridgePlugin extends JavaPlugin {
@@ -39,6 +40,28 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                 });
         Objects.requireNonNull(getCommand("usapo-event-bridge"))
                 .setExecutor(new EventBridgeCommand(voiceBonusCommand, emeraldDiamondCommand));
+        ItemGachaRequestPublisher itemGachaPublisher =
+                new ItemGachaRequestPublisher(getLogger()::info);
+        BedrockGachaFormGateway itemGachaForms = (player, selectionHandler) -> false;
+        BedrockExchangeFormGateway exchangeForms = (player, selectionHandler) -> false;
+        if (getServer().getPluginManager().isPluginEnabled("floodgate")) {
+            itemGachaForms = new FloodgateGachaFormGateway(this);
+            exchangeForms = new FloodgateExchangeFormGateway(this);
+        } else {
+            getLogger().warning(
+                    "Floodgate is unavailable; /gacha and /exchange remain available "
+                            + "without Bedrock forms");
+        }
+        ItemGachaCommand itemGachaCommand =
+                new ItemGachaCommand(itemGachaPublisher, itemGachaForms);
+        PluginCommand gacha = Objects.requireNonNull(getCommand("gacha"));
+        gacha.setExecutor(itemGachaCommand);
+        gacha.setTabCompleter(itemGachaCommand);
+        ExchangeCommand exchangeCommand = new ExchangeCommand(
+                new ExchangeRequestPublisher(getLogger()::info), exchangeForms);
+        PluginCommand exchange = Objects.requireNonNull(getCommand("exchange"));
+        exchange.setExecutor(exchangeCommand);
+        exchange.setTabCompleter(exchangeCommand);
         if (!BonusToggle.isEnabled(System.getenv("USAPO_BONUSES_ENABLED"))) {
             getLogger().warning(
                     "Fishing, woodcutting, mining, natural experience, and voice XP bonuses disabled");

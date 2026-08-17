@@ -21,6 +21,10 @@
       <id>papermc</id>
       <url>https://repo.papermc.io/repository/maven-public/</url>
     </repository>
+    <repository>
+      <id>opencollab-main</id>
+      <url>https://repo.opencollab.dev/main/</url>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -28,6 +32,12 @@
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
       <version>${paper.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.geysermc.floodgate</groupId>
+      <artifactId>api</artifactId>
+      <version>2.2.5-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
