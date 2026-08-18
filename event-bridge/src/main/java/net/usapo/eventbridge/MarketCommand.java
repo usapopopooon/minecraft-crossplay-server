@@ -61,7 +61,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             case "sell" -> parsePositiveInteger(arguments, 1)
                     .ifPresentOrElse(
                             price -> sell(player, price),
-                            () -> player.sendMessage("出品: /market sell <合計価格XP>"));
+                            () -> player.sendMessage(
+                                    "出品: /market sell <合計価格>（価格はサーバーXP）"));
             case "list" -> showListings(player, parsePage(arguments));
             case "mine" -> showMine(player);
             case "buy" -> parsePositiveLong(arguments, 1)
@@ -141,7 +142,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         player.sendMessage("出品しました: #" + listing.id() + " " + listing.label()
-                + " / 合計 " + listing.priceXp() + " XP");
+                + " / 合計 " + listing.priceXp() + " サーバーXP");
     }
 
     @EventHandler
@@ -217,7 +218,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         }
         requests.publishRequest("buy", listing.id(), listing.priceXp(), player);
         player.sendMessage("購入を確認しています: #" + listing.id() + " " + listing.label()
-                + " / " + listing.priceXp() + " XP");
+                + " / " + listing.priceXp() + " サーバーXP");
     }
 
     private void cancel(Player player, long listingId) {
@@ -247,7 +248,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
                 .skip((long) (selected - 1) * PAGE_SIZE)
                 .limit(PAGE_SIZE)
                 .forEach(listing -> player.sendMessage("#" + listing.id() + " "
-                        + listing.label() + " / " + listing.priceXp() + " XP / "
+                        + listing.label() + " / " + listing.priceXp() + " サーバーXP / "
                         + listing.sellerName()));
         player.sendMessage("購入: /market buy <出品番号>");
     }
@@ -262,7 +263,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         }
         player.sendMessage("自分の出品");
         mine.forEach(listing -> player.sendMessage("#" + listing.id() + " "
-                + listing.label() + " / " + listing.priceXp() + " XP"));
+                + listing.label() + " / " + listing.priceXp() + " サーバーXP"));
         player.sendMessage("取消: /market cancel <出品番号>");
     }
 
@@ -296,11 +297,12 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
 
     private static void sendUsage(Player player) {
         player.sendMessage("マーケット: /market list [ページ]");
-        player.sendMessage("出品: /market sell <合計価格XP>（手に持ったスタック全部）");
+        player.sendMessage(
+                "出品: /market sell <合計価格>（価格はサーバーXP・手に持ったスタック全部）");
         player.sendMessage("購入: /market buy <出品番号>");
         player.sendMessage("自分の出品: /market mine");
         player.sendMessage("取消: /market cancel <出品番号>");
-        player.sendMessage("XP残高: /market balance");
+        player.sendMessage("サーバーXP残高: /market balance");
     }
 
     @Override

@@ -16,7 +16,7 @@ commands:
     aliases: [itemgacha]
     permission: usapo.gacha.use
   market:
-    description: Opens the player item market.
+    description: Opens the player item market using server XP.
     usage: /market [list|sell|buy|mine|cancel|balance]
     aliases: [fleamarket]
     permission: usapo.market.use

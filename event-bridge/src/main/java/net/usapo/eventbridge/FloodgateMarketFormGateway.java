@@ -11,6 +11,10 @@ import org.geysermc.floodgate.api.FloodgateApi;
 
 final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
     private static final int FORM_LISTING_LIMIT = 20;
+    static final String INTRODUCTION =
+            "手持ちアイテムをサーバーXPで売買できます。手数料はありません。";
+    static final String BALANCE_BUTTON_LABEL = "サーバーXP残高";
+    static final String PRICE_INPUT_LABEL = "スタック全体の価格（サーバーXP）";
 
     private final JavaPlugin plugin;
     private final MarketRepository repository;
@@ -29,11 +33,11 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         }
         SimpleForm form = SimpleForm.builder()
                 .title("プレイヤーマーケット")
-                .content("手持ちアイテムをXPで売買できます。手数料はありません。")
+                .content(INTRODUCTION)
                 .button("商品を見る")
                 .button("手に持ったスタックを出品")
                 .button("自分の出品")
-                .button("自分のXP")
+                .button(BALANCE_BUTTON_LABEL)
                 .button("閉じる")
                 .validResultHandler(response -> runOnMain(() -> {
                     switch (response.clickedButtonId()) {
@@ -63,7 +67,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                 .title("商品一覧")
                 .content("購入する商品を選んでください。新しい出品から最大20件を表示します。");
         listings.forEach(listing -> builder.button("#" + listing.id() + " "
-                + listing.label() + "\n" + listing.priceXp() + " XP / "
+                + listing.label() + "\n" + priceLabel(listing.priceXp()) + " / "
                 + listing.sellerName()));
         SimpleForm form = builder
                 .button("戻る")
@@ -86,7 +90,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         ModalForm form = ModalForm.builder()
                 .title("購入内容の確認")
                 .content("#" + listing.id() + " " + listing.label() + "\n価格: "
-                        + listing.priceXp() + " XP\n出品者: " + listing.sellerName()
+                        + priceLabel(listing.priceXp()) + "\n出品者: " + listing.sellerName()
                         + "\n\nこの商品を購入しますか？")
                 .button1("購入する")
                 .button2("戻る")
@@ -107,7 +111,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
     private void openSell(Player player, Consumer<MarketFormAction> actionHandler) {
         CustomForm form = CustomForm.builder()
                 .title("出品する")
-                .input("スタック全体の価格（XP）", "例: 3000")
+                .input(PRICE_INPUT_LABEL, "例: 3000")
                 .validResultHandler(response -> runOnMain(() -> {
                     String input = response.asInput(0).trim();
                     try {
@@ -118,7 +122,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                         actionHandler.accept(
                                 new MarketFormAction(MarketFormAction.Kind.SELL, 0, priceXp));
                     } catch (NumberFormatException error) {
-                        sendMessage(player, "価格は1以上の整数で入力してください。");
+                        sendMessage(player, "価格は1以上の整数（サーバーXP）で入力してください。");
                     }
                 }))
                 .build();
@@ -138,7 +142,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                 .title("自分の出品")
                 .content("取り消して返却する商品を選んでください。");
         listings.forEach(listing -> builder.button("#" + listing.id() + " "
-                + listing.label() + "\n" + listing.priceXp() + " XP"));
+                + listing.label() + "\n" + priceLabel(listing.priceXp())));
         SimpleForm form = builder
                 .button("戻る")
                 .validResultHandler(response -> runOnMain(() -> {
@@ -164,6 +168,10 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         if (!floodgate.sendForm(player.getUniqueId(), form)) {
             sendMessage(player, "フォームを表示できませんでした。/market コマンドをお試しください。");
         }
+    }
+
+    static String priceLabel(int priceXp) {
+        return priceXp + " サーバーXP";
     }
 
     private void sendMessage(Player player, String message) {
