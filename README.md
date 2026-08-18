@@ -80,6 +80,10 @@ Minecraft experience. A completed purchase charges the displayed server XP
 from the buyer and credits it to the seller. Delivery and return require the
 recipient to be online with enough inventory space; retry IDs stored in player
 data prevent a lost RCON response from duplicating the item.
+Java command output, Bedrock forms, and the listing event sent to mc-bot all
+render the item's effective name through the bundled Minecraft Java 26.2
+Japanese translations. This covers data-dependent vanilla names while
+preserving custom item names, so every market surface uses the same name.
 
 ```text
 Java Edition:    <your-hostname>:25565

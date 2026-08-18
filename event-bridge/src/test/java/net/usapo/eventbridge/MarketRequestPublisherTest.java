@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -46,7 +47,7 @@ final class MarketRequestPublisherTest {
                 List.of(
                         "USAPO_MARKET_LISTING|1|" + requestId + "|17|" + sellerId
                                 + "|Lll1a2kxOTkx|bWluZWNyYWZ0OmFuY2llbnRfZGVicmlz"
-                                + "|YW5jaWVudCBkZWJyaXM|2|3000|1787011200000",
+                                + "|5Y-k5Luj44Gu5q6L6aq4|2|3000|1787011200000",
                         "USAPO_MARKET_REQUEST|1|" + requestId
                                 + "|buy|17|33333333-3333-4333-8333-333333333333"
                                 + "|U3RldmU|3000|1787011200000"),
@@ -59,12 +60,17 @@ final class MarketRequestPublisherTest {
         when(item.getType()).thenReturn(material);
         when(item.getAmount()).thenReturn(amount);
         when(item.getItemMeta()).thenReturn(null);
+        boolean block = material.isBlock();
+        String materialKey = material.getKey().getKey();
+        when(item.effectiveName()).thenReturn(Component.translatable(
+                (block ? "block.minecraft." : "item.minecraft.") + materialKey));
         return item;
     }
 
     @SuppressWarnings("deprecation")
     private static Material material(String key) {
         Material material = mock(Material.class);
+        when(material.isBlock()).thenReturn(key.equals("ancient_debris"));
         when(material.getKey()).thenReturn(NamespacedKey.minecraft(key));
         return material;
     }

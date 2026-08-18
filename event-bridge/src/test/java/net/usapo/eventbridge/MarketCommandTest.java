@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -140,9 +141,9 @@ final class MarketCommandTest {
                 "出品: /market sell <合計価格>（価格はサーバーXP・手に持ったスタック全部）"));
         assertTrue(messages.contains("サーバーXP残高: /market balance"));
         assertTrue(messages.stream().anyMatch(message ->
-                message.contains("#1 ancient debris x2 / 3000 サーバーXP / Seller")));
+                message.contains("#1 古代の残骸 x2 / 3000 サーバーXP / Seller")));
         assertTrue(messages.stream().anyMatch(message ->
-                message.contains("購入を確認しています: #1 ancient debris x2 / 3000 サーバーXP")));
+                message.contains("購入を確認しています: #1 古代の残骸 x2 / 3000 サーバーXP")));
     }
 
     @Test
@@ -252,6 +253,9 @@ final class MarketCommandTest {
         when(item.getType()).thenReturn(material);
         when(item.getAmount()).thenReturn(amount);
         when(item.serialize()).thenReturn(Map.of("type", materialKey, "amount", amount));
+        boolean block = material.isBlock();
+        when(item.effectiveName()).thenReturn(Component.translatable(
+                (block ? "block.minecraft." : "item.minecraft.") + materialKey));
         return item;
     }
 
@@ -259,6 +263,7 @@ final class MarketCommandTest {
     private static Material material(String key) {
         Material material = mock(Material.class);
         when(material.isAir()).thenReturn(false);
+        when(material.isBlock()).thenReturn(key.equals("ancient_debris"));
         when(material.getKey()).thenReturn(NamespacedKey.minecraft(key));
         return material;
     }
