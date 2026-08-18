@@ -113,6 +113,39 @@ final class MarketCommandTest {
     }
 
     @Test
+    void commandHelpAndDisplayedPricesIdentifyServerXp() {
+        MemoryRepository repository = new MemoryRepository();
+        repository.create(
+                EVENT_ID, SELLER_ID, "Seller", 3_000, item(material("ancient_debris"), 2));
+        MarketCommand command = new MarketCommand(
+                repository,
+                new MarketRequestSink() {
+                    @Override
+                    public void publishListing(MarketListing listing) {}
+
+                    @Override
+                    public void publishRequest(
+                            String kind, long listingId, int priceXp, Player player) {}
+                },
+                (player, handler) -> false,
+                pendingKey());
+        List<String> messages = new ArrayList<>();
+        Player buyer = player("Buyer", BUYER_ID, new AtomicReference<>(), messages);
+
+        command.onCommand(buyer, null, "market", new String[] {});
+        command.onCommand(buyer, null, "market", new String[] {"list"});
+        command.onCommand(buyer, null, "market", new String[] {"buy", "1"});
+
+        assertTrue(messages.contains(
+                "出品: /market sell <合計価格>（価格はサーバーXP・手に持ったスタック全部）"));
+        assertTrue(messages.contains("サーバーXP残高: /market balance"));
+        assertTrue(messages.stream().anyMatch(message ->
+                message.contains("#1 ancient debris x2 / 3000 サーバーXP / Seller")));
+        assertTrue(messages.stream().anyMatch(message ->
+                message.contains("購入を確認しています: #1 ancient debris x2 / 3000 サーバーXP")));
+    }
+
+    @Test
     void failedListingPublicationKeepsEscrowAndRecoversWithoutDuplicatingItem() {
         MemoryRepository repository = new MemoryRepository();
         AtomicBoolean failPublication = new AtomicBoolean(true);
