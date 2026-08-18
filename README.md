@@ -76,11 +76,10 @@ balance check. Java players, or clients where a form cannot be shown, can use
 `/market mine`, `/market cancel <listing>`, and `/market balance`. Listing moves
 the entire main-hand stack, including its item metadata, into persistent escrow.
 Prices and balances are displayed explicitly as server XP, distinct from
-Minecraft experience. There is no operator fee: a completed purchase charges
-the displayed server XP from the buyer and credits the same amount to the seller.
-Delivery and return require the recipient to be online with enough inventory
-space; retry IDs stored in player data prevent a lost RCON response from
-duplicating the item.
+Minecraft experience. A completed purchase charges the displayed server XP
+from the buyer and credits it to the seller. Delivery and return require the
+recipient to be online with enough inventory space; retry IDs stored in player
+data prevent a lost RCON response from duplicating the item.
 
 ```text
 Java Edition:    <your-hostname>:25565

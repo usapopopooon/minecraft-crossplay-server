@@ -11,8 +11,7 @@ import org.geysermc.floodgate.api.FloodgateApi;
 
 final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
     private static final int FORM_LISTING_LIMIT = 20;
-    static final String INTRODUCTION =
-            "手持ちアイテムをサーバーXPで売買できます。手数料はありません。";
+    static final String INTRODUCTION = "手持ちアイテムをサーバーXPで売買できます。";
     static final String BALANCE_BUTTON_LABEL = "サーバーXP残高";
     static final String PRICE_INPUT_LABEL = "スタック全体の価格（サーバーXP）";
 
