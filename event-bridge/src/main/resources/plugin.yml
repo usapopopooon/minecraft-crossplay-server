@@ -12,7 +12,7 @@ commands:
     permission: usapo.exchange.use
   gacha:
     description: Opens the Minecraft item gacha.
-    usage: /gacha [normal|rare]
+    usage: /gacha [normal|rare|<resource|adventure|equipment> <normal|rare>]
     aliases: [itemgacha]
     permission: usapo.gacha.use
   market:

@@ -53,13 +53,18 @@ is required.
 
 Linked players can start the shared XP item gacha from inside the game with
 `/gacha`. Floodgate/Bedrock players receive a touch-friendly selection form and
-a second confirmation before spending XP. Java players, or Bedrock players if
-forms are unavailable, use `/gacha normal` for the 100 XP draw or `/gacha rare`
-for the 1,000 XP R-or-higher draw. Both entry points use mc-bot's existing JST
+a second form for the draw type, followed by confirmation. The first form offers
+random, resources/mining, adventure, and equipment/upgrades. Java players, or
+Bedrock players if forms are unavailable, use `/gacha normal` for the 100 XP
+random draw or `/gacha rare` for the 1,000 XP R-or-higher random draw. A category
+can be selected with commands such as `/gacha resource normal`,
+`/gacha adventure rare`, or `/gacha equipment normal`. All entry points use
+mc-bot's existing JST
 daily limit of three total draws, reward table, XP reservation, public result
 notifications, and duplicate-delivery protection. Status and errors are sent
 only to the requesting player in Minecraft. The confirmed price is included in
-the structured request; mc-bot rejects a legacy request or a price mismatch
+the versioned structured request together with the category; mc-bot rejects a
+legacy request without a confirmed price or a price mismatch
 without spending XP, so separately deployed plugin versions cannot silently
 change the confirmed charge. No client add-on is required.
 

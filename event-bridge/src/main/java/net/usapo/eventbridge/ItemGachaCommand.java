@@ -46,21 +46,34 @@ final class ItemGachaCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (arguments.length == 0) {
-            if (!forms.open(player, kind -> submit(player, kind))) {
+            if (!forms.open(player, selection -> submit(
+                    player, selection.category(), selection.kind()))) {
                 sendUsage(player);
             }
             return true;
         }
-        if (arguments.length != 1) {
+        if (arguments.length == 1) {
+            ItemGachaKind.fromCommandArgument(arguments[0]).ifPresentOrElse(
+                    kind -> submit(player, ItemGachaCategory.ALL, kind),
+                    () -> sendUsage(player));
+            return true;
+        }
+        if (arguments.length != 2) {
             sendUsage(player);
             return true;
         }
-        ItemGachaKind.fromCommandArgument(arguments[0])
-                .ifPresentOrElse(kind -> submit(player, kind), () -> sendUsage(player));
+        ItemGachaCategory category = ItemGachaCategory.fromCommandArgument(arguments[0])
+                .orElse(null);
+        ItemGachaKind kind = ItemGachaKind.fromCommandArgument(arguments[1]).orElse(null);
+        if (category == null || kind == null) {
+            sendUsage(player);
+            return true;
+        }
+        submit(player, category, kind);
         return true;
     }
 
-    private void submit(Player player, ItemGachaKind kind) {
+    private void submit(Player player, ItemGachaCategory category, ItemGachaKind kind) {
         if (!player.isOnline()) {
             return;
         }
@@ -71,13 +84,15 @@ final class ItemGachaCommand implements CommandExecutor, TabCompleter {
             player.sendMessage("直前のガチャ要求を処理中です。少し待ってからお試しください。");
             return;
         }
-        requestSink.publish(kind, player);
-        player.sendMessage(kind.label() + "ガチャを受け付けました。結果はまもなく表示されます。");
+        requestSink.publish(category, kind, player);
+        player.sendMessage(category.label() + "・" + kind.label()
+                + "ガチャを受け付けました。結果はまもなく表示されます。");
     }
 
     private static void sendUsage(Player player) {
-        player.sendMessage("アイテムガチャ: /gacha normal (100 XP) または "
+        player.sendMessage("おまかせ: /gacha normal (100 XP) または "
                 + "/gacha rare (R以上確定・1,000 XP)");
+        player.sendMessage("種類指定: /gacha <resource|adventure|equipment> <normal|rare>");
         player.sendMessage("両方を合わせて日本時間0:00更新・1日3回までです。");
     }
 
@@ -87,12 +102,19 @@ final class ItemGachaCommand implements CommandExecutor, TabCompleter {
             @NotNull Command command,
             @NotNull String alias,
             @NotNull String[] arguments) {
-        if (arguments.length != 1) {
-            return List.of();
+        if (arguments.length == 1) {
+            String prefix = arguments[0].toLowerCase(Locale.ROOT);
+            return List.of("normal", "rare", "resource", "adventure", "equipment").stream()
+                    .filter(option -> option.startsWith(prefix))
+                    .toList();
         }
-        String prefix = arguments[0].toLowerCase(Locale.ROOT);
-        return List.of("normal", "rare").stream()
-                .filter(option -> option.startsWith(prefix))
-                .toList();
+        if (arguments.length == 2
+                && ItemGachaCategory.fromCommandArgument(arguments[0]).isPresent()) {
+            String prefix = arguments[1].toLowerCase(Locale.ROOT);
+            return List.of("normal", "rare").stream()
+                    .filter(option -> option.startsWith(prefix))
+                    .toList();
+        }
+        return List.of();
     }
 }

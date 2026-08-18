@@ -23,11 +23,14 @@ final class ItemGachaRequestPublisherTest {
                 Clock.fixed(Instant.parse("2026-08-16T00:00:00Z"), ZoneOffset.UTC),
                 () -> requestId);
 
-        publisher.publish(ItemGachaKind.PREMIUM, player(".Yuki1991", playerId));
+        publisher.publish(
+                ItemGachaCategory.EQUIPMENT,
+                ItemGachaKind.PREMIUM,
+                player(".Yuki1991", playerId));
 
         assertEquals(
-                List.of("USAPO_ITEM_GACHA_REQUEST|2|" + requestId + "|" + playerId
-                        + "|Lll1a2kxOTkx|premium|1000|1786838400000"),
+                List.of("USAPO_ITEM_GACHA_REQUEST|3|" + requestId + "|" + playerId
+                        + "|Lll1a2kxOTkx|equipment|premium|1000|1786838400000"),
                 messages);
     }
 

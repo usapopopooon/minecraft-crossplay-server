@@ -4,5 +4,5 @@ import org.bukkit.entity.Player;
 
 @FunctionalInterface
 interface ItemGachaRequestSink {
-    void publish(ItemGachaKind kind, Player player);
+    void publish(ItemGachaCategory category, ItemGachaKind kind, Player player);
 }

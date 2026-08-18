@@ -19,29 +19,44 @@ final class ItemGachaCommandTest {
             UUID.fromString("22222222-2222-4222-8222-222222222222");
 
     @Test
-    void directCommandsMapNormalAndRareToExactKinds() {
-        List<ItemGachaKind> requests = new ArrayList<>();
+    void directCommandsKeepLegacyAliasesAndMapCategoryCommandsExactly() {
+        List<ItemGachaSelection> requests = new ArrayList<>();
         List<String> messages = new ArrayList<>();
         AtomicLong now = new AtomicLong(10_000);
         Player player = player(messages);
         ItemGachaCommand command =
-                new ItemGachaCommand((kind, found) -> requests.add(kind), (found, handler) -> false,
+                new ItemGachaCommand(
+                        (category, kind, found) -> requests.add(
+                                new ItemGachaSelection(category, kind)),
+                        (found, handler) -> false,
                         now::get);
 
         assertTrue(command.onCommand(player, null, "gacha", new String[] {"normal"}));
         now.addAndGet(2_000);
         assertTrue(command.onCommand(player, null, "gacha", new String[] {"rare"}));
+        now.addAndGet(2_000);
+        assertTrue(command.onCommand(
+                player, null, "gacha", new String[] {"resource", "normal"}));
+        now.addAndGet(2_000);
+        assertTrue(command.onCommand(
+                player, null, "gacha", new String[] {"equipment", "rare"}));
 
-        assertEquals(List.of(ItemGachaKind.NORMAL, ItemGachaKind.PREMIUM), requests);
-        assertEquals(2, messages.stream().filter(message -> message.contains("受け付けました")).count());
+        assertEquals(
+                List.of(
+                        new ItemGachaSelection(ItemGachaCategory.ALL, ItemGachaKind.NORMAL),
+                        new ItemGachaSelection(ItemGachaCategory.ALL, ItemGachaKind.PREMIUM),
+                        new ItemGachaSelection(ItemGachaCategory.RESOURCES, ItemGachaKind.NORMAL),
+                        new ItemGachaSelection(ItemGachaCategory.EQUIPMENT, ItemGachaKind.PREMIUM)),
+                requests);
+        assertEquals(4, messages.stream().filter(message -> message.contains("受け付けました")).count());
     }
 
     @Test
     void bedrockFormSelectionUsesTheSameSubmissionPath() {
-        List<ItemGachaKind> requests = new ArrayList<>();
-        AtomicReference<Consumer<ItemGachaKind>> selection = new AtomicReference<>();
+        List<ItemGachaSelection> requests = new ArrayList<>();
+        AtomicReference<Consumer<ItemGachaSelection>> selection = new AtomicReference<>();
         ItemGachaCommand command = new ItemGachaCommand(
-                (kind, player) -> requests.add(kind),
+                (category, kind, player) -> requests.add(new ItemGachaSelection(category, kind)),
                 (player, handler) -> {
                     selection.set(handler);
                     return true;
@@ -50,17 +65,21 @@ final class ItemGachaCommandTest {
         Player player = player(new ArrayList<>());
 
         assertTrue(command.onCommand(player, null, "gacha", new String[0]));
-        selection.get().accept(ItemGachaKind.PREMIUM);
+        selection.get().accept(
+                new ItemGachaSelection(ItemGachaCategory.ADVENTURE, ItemGachaKind.PREMIUM));
 
-        assertEquals(List.of(ItemGachaKind.PREMIUM), requests);
+        assertEquals(
+                List.of(new ItemGachaSelection(
+                        ItemGachaCategory.ADVENTURE, ItemGachaKind.PREMIUM)),
+                requests);
     }
 
     @Test
     void bedrockFormCannotSubmitAfterPlayerDisconnects() {
-        List<ItemGachaKind> requests = new ArrayList<>();
-        AtomicReference<Consumer<ItemGachaKind>> selection = new AtomicReference<>();
+        List<ItemGachaSelection> requests = new ArrayList<>();
+        AtomicReference<Consumer<ItemGachaSelection>> selection = new AtomicReference<>();
         ItemGachaCommand command = new ItemGachaCommand(
-                (kind, player) -> requests.add(kind),
+                (category, kind, player) -> requests.add(new ItemGachaSelection(category, kind)),
                 (player, handler) -> {
                     selection.set(handler);
                     return true;
@@ -69,32 +88,39 @@ final class ItemGachaCommandTest {
         Player player = player(new ArrayList<>(), false);
 
         assertTrue(command.onCommand(player, null, "gacha", new String[0]));
-        selection.get().accept(ItemGachaKind.PREMIUM);
+        selection.get().accept(
+                new ItemGachaSelection(ItemGachaCategory.ALL, ItemGachaKind.PREMIUM));
 
         assertTrue(requests.isEmpty());
     }
 
     @Test
     void duplicateTapIsDebouncedWithoutPublishingTwice() {
-        List<ItemGachaKind> requests = new ArrayList<>();
+        List<ItemGachaSelection> requests = new ArrayList<>();
         List<String> messages = new ArrayList<>();
         ItemGachaCommand command = new ItemGachaCommand(
-                (kind, player) -> requests.add(kind), (player, handler) -> false, () -> 10_000);
+                (category, kind, player) -> requests.add(new ItemGachaSelection(category, kind)),
+                (player, handler) -> false,
+                () -> 10_000);
         Player player = player(messages);
 
         command.onCommand(player, null, "gacha", new String[] {"normal"});
         command.onCommand(player, null, "gacha", new String[] {"rare"});
 
-        assertEquals(List.of(ItemGachaKind.NORMAL), requests);
+        assertEquals(
+                List.of(new ItemGachaSelection(ItemGachaCategory.ALL, ItemGachaKind.NORMAL)),
+                requests);
         assertTrue(messages.stream().anyMatch(message -> message.contains("処理中")));
     }
 
     @Test
     void consoleAndInvalidArgumentsNeverPublish() {
-        List<ItemGachaKind> requests = new ArrayList<>();
+        List<ItemGachaSelection> requests = new ArrayList<>();
         List<String> consoleMessages = new ArrayList<>();
         ItemGachaCommand command = new ItemGachaCommand(
-                (kind, player) -> requests.add(kind), (player, handler) -> false, () -> 10_000);
+                (category, kind, player) -> requests.add(new ItemGachaSelection(category, kind)),
+                (player, handler) -> false,
+                () -> 10_000);
 
         assertTrue(command.onCommand(
                 sender(consoleMessages), null, "gacha", new String[] {"normal"}));

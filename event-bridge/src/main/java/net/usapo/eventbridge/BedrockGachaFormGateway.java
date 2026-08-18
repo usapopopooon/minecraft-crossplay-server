@@ -5,5 +5,5 @@ import org.bukkit.entity.Player;
 
 @FunctionalInterface
 interface BedrockGachaFormGateway {
-    boolean open(Player player, Consumer<ItemGachaKind> selectionHandler);
+    boolean open(Player player, Consumer<ItemGachaSelection> selectionHandler);
 }

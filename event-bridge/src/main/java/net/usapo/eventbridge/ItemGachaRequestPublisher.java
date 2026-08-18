@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 import org.bukkit.entity.Player;
 
 final class ItemGachaRequestPublisher implements ItemGachaRequestSink {
-    static final String PREFIX = "USAPO_ITEM_GACHA_REQUEST|2|";
+    static final String PREFIX = "USAPO_ITEM_GACHA_REQUEST|3|";
 
     private final Consumer<String> logSink;
     private final Clock clock;
@@ -29,7 +29,7 @@ final class ItemGachaRequestPublisher implements ItemGachaRequestSink {
     }
 
     @Override
-    public void publish(ItemGachaKind kind, Player player) {
+    public void publish(ItemGachaCategory category, ItemGachaKind kind, Player player) {
         String encodedName = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(player.getName().getBytes(StandardCharsets.UTF_8));
@@ -39,6 +39,8 @@ final class ItemGachaRequestPublisher implements ItemGachaRequestSink {
                 + player.getUniqueId()
                 + "|"
                 + encodedName
+                + "|"
+                + category.wireName()
                 + "|"
                 + kind.wireName()
                 + "|"
