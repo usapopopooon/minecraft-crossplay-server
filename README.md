@@ -63,6 +63,18 @@ the structured request; mc-bot rejects a legacy request or a price mismatch
 without spending XP, so separately deployed plugin versions cannot silently
 change the confirmed charge. No client add-on is required.
 
+Linked players can also trade ordinary held item stacks with each other through
+`/market`. Floodgate/Bedrock players receive a touch-friendly product list,
+listing form, purchase confirmation, own-listings view, and private XP balance
+check. Java players, or clients where a form cannot be shown, can use
+`/market list [page]`, `/market sell <total-price-xp>`, `/market buy <listing>`,
+`/market mine`, `/market cancel <listing>`, and `/market balance`. Listing moves
+the entire main-hand stack, including its item metadata, into persistent escrow.
+There is no operator fee: a completed purchase charges the displayed XP from the
+buyer and credits the same amount to the seller. Delivery and return require the
+recipient to be online with enough inventory space; retry IDs stored in player
+data prevent a lost RCON response from duplicating the item.
+
 ```text
 Java Edition:    <your-hostname>:25565
 Bedrock Edition: <your-hostname>:19132

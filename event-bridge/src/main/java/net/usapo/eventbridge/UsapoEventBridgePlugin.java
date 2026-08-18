@@ -1,5 +1,7 @@
 package net.usapo.eventbridge;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Objects;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -38,18 +40,31 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                             "交換完了: エメラルド x" + emeraldCount + " → ダイヤモンド x" + diamondCount,
                             NamedTextColor.AQUA));
                 });
+        MarketRepository marketRepository;
+        try {
+            marketRepository = new YamlMarketRepository(new File(getDataFolder(), "market.yml"));
+        } catch (IOException error) {
+            throw new IllegalStateException("Could not load Minecraft market escrow", error);
+        }
+        MarketTransferCommand marketTransferCommand = new MarketTransferCommand(
+                playerId -> getServer().getPlayer(playerId),
+                marketRepository,
+                new NamespacedKey(this, "market_transfer_history"));
         Objects.requireNonNull(getCommand("usapo-event-bridge"))
-                .setExecutor(new EventBridgeCommand(voiceBonusCommand, emeraldDiamondCommand));
+                .setExecutor(new EventBridgeCommand(
+                        voiceBonusCommand, emeraldDiamondCommand, marketTransferCommand));
         ItemGachaRequestPublisher itemGachaPublisher =
                 new ItemGachaRequestPublisher(getLogger()::info);
         BedrockGachaFormGateway itemGachaForms = (player, selectionHandler) -> false;
         BedrockExchangeFormGateway exchangeForms = (player, selectionHandler) -> false;
+        BedrockMarketFormGateway marketForms = (player, actionHandler) -> false;
         if (getServer().getPluginManager().isPluginEnabled("floodgate")) {
             itemGachaForms = new FloodgateGachaFormGateway(this);
             exchangeForms = new FloodgateExchangeFormGateway(this);
+            marketForms = new FloodgateMarketFormGateway(this, marketRepository);
         } else {
             getLogger().warning(
-                    "Floodgate is unavailable; /gacha and /exchange remain available "
+                    "Floodgate is unavailable; /gacha, /exchange, and /market remain available "
                             + "without Bedrock forms");
         }
         ItemGachaCommand itemGachaCommand =
@@ -62,6 +77,18 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         PluginCommand exchange = Objects.requireNonNull(getCommand("exchange"));
         exchange.setExecutor(exchangeCommand);
         exchange.setTabCompleter(exchangeCommand);
+        MarketRequestPublisher marketPublisher = new MarketRequestPublisher(getLogger()::info);
+        MarketCommand marketCommand = new MarketCommand(
+                marketRepository,
+                marketPublisher,
+                marketForms,
+                new NamespacedKey(this, "pending_market_escrow"));
+        PluginCommand market = Objects.requireNonNull(getCommand("market"));
+        market.setExecutor(marketCommand);
+        market.setTabCompleter(marketCommand);
+        getServer().getPluginManager().registerEvents(marketCommand, this);
+        marketRepository.activeListings().forEach(marketPublisher::publishListing);
+        getServer().getOnlinePlayers().forEach(marketCommand::recoverPendingEscrow);
         if (!BonusToggle.isEnabled(System.getenv("USAPO_BONUSES_ENABLED"))) {
             getLogger().warning(
                     "Fishing, woodcutting, mining, natural experience, and voice XP bonuses disabled");

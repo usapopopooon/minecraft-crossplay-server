@@ -15,16 +15,25 @@ commands:
     usage: /gacha [normal|rare]
     aliases: [itemgacha]
     permission: usapo.gacha.use
+  market:
+    description: Opens the player item market.
+    usage: /market [list|sell|buy|mine|cancel|balance]
+    aliases: [fleamarket]
+    permission: usapo.market.use
   usapo-event-bridge:
     description: Controls internal mc-bot integration state.
     usage: |-
       /usapo-event-bridge voice-bonus <uuid> <on|off>
       /usapo-event-bridge emerald-diamond-v2 <uuid> <32|64> <request-uuid>
+      /usapo-event-bridge market-deliver <listing> <buyer-uuid> <purchase-uuid>
+      /usapo-event-bridge market-return <listing> <seller-uuid> <request-uuid>
     permission: usapo.eventbridge.control
 permissions:
   usapo.exchange.use:
     default: true
   usapo.gacha.use:
+    default: true
+  usapo.market.use:
     default: true
   usapo.eventbridge.control:
     default: op
