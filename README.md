@@ -117,6 +117,8 @@ chunks, entities, farms, and other workloads on the host.
 The whitelist is enabled and enforced. `OVERRIDE_WHITELIST` remains disabled,
 so existing entries in `whitelist.json` are preserved across container starts.
 Add Java players with `whitelist` and Floodgate players with `fwhitelist`.
+The vanilla spawn protection radius is set to `0`, so non-operator players can
+build at the initial world spawn like anywhere else.
 
 The companion `mc-bot` manages registrations over RCON. RCON is only reachable
 through the external `minecraft-control` Docker network and is not published as
