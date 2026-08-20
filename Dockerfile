@@ -8,4 +8,5 @@ RUN mvn --batch-mode --no-transfer-progress verify
 
 FROM itzg/minecraft-server:2026.8.0@sha256:e3335993929a1565f73c30b2041bcbc1473fc9c406fdd5a0d0ea24c08ef73320
 
+COPY paper-patches /usapo-paper-patches
 COPY --from=event-bridge-build /build/target/usapo-event-bridge.jar /plugins/usapo-event-bridge.jar

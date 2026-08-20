@@ -143,6 +143,12 @@ commit deployment-specific addresses or hostnames.
 The named volume `minecraft-crossplay-data` stores the server, plugins,
 configuration, and world independently of application recreation.
 
+Dropped tree-regrowth items remain for 15 minutes instead of the default five:
+the eight overworld saplings, mangrove propagules, azaleas, and flowering
+azaleas. The image applies this narrowly scoped Paper world-default patch at
+startup, so other dropped items and the vanilla leaf loot tables are unchanged.
+Applying the setting to a running server requires a planned Minecraft restart.
+
 The default runtime profile targets up to 20 players on a small dedicated
 host: a 6 GiB Java heap, an 8 GiB container memory limit, a view distance of 16,
 and a simulation distance of 4. Aikar JVM flags are enabled to reduce garbage
