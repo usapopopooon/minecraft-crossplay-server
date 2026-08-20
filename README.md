@@ -85,6 +85,36 @@ render the item's effective name through the bundled Minecraft Java 26.2
 Japanese translations. This covers data-dependent vanilla names while
 preserving custom item names, so every market surface uses the same name.
 
+Linked players can create item-delivery quests with `/quest`. The first release
+accepts only ordinary stackable items without custom names, enchantments, or
+other metadata, and both the requested amount and reward must fit in one stack.
+Creation is a two-step escrow flow: hold a sample of the requested item and run
+`/quest create <count> <hours>`, then hold the entire reward stack and run
+`/quest confirm`. `/quest discard` removes a stale draft without consuming an item.
+Bedrock shows the exact request, deadline, and held reward in a final confirmation
+before escrow. The reward is persisted before the quest is published.
+Java players can browse with `/quest list [page]`; Floodgate/Bedrock players get
+touch-friendly paginated browse, create, confirmation, own-quest, submit, abandon,
+cancel, and claim forms from `/quest`.
+
+A quest has one assignee and requires all requested items in one submission.
+Use `/quest accept <quest>`, `/quest submit <quest>`, `/quest abandon <quest>`,
+and `/quest cancel <quest>`. An accepted quest cannot be cancelled by its owner.
+If its 1–72 hour fulfillment deadline passes, it is reopened; an unaccepted
+quest expires after seven days and returns the reward. Completed submissions,
+rewards, and cancelled/expired returns enter a persistent mailbox and are
+delivered exactly once with `/quest claim`, including after a restart or a full
+inventory. A full-inventory claim skips other items that still fit and names the
+items left behind. Assignment and listing expiry notices are persisted and shown
+on the affected players' next command or login. Paper stores quest state,
+transition IDs, escrow, and mailbox claims
+atomically in `plugins/UsapoEventBridge/quest.yml`. The same file also keeps the latest
+state publication and completion broadcast pending until each succeeds. A crash between
+quest completion and notification therefore resumes the missing work at plugin startup
+or during the periodic recovery pass. The internal mc-bot reconciliation command can
+invalidate an unlinked owner's quest even after it was accepted; no submitted item is
+removed in that state, and the escrowed reward returns to the owner's mailbox.
+
 ```text
 Java Edition:    <your-hostname>:25565
 Bedrock Edition: <your-hostname>:19132
