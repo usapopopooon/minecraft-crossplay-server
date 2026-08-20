@@ -39,6 +39,7 @@ services:
       REMOVE_OLD_MODS: "TRUE"
       REMOVE_OLD_MODS_INCLUDE: "Geyser-Spigot.jar,floodgate-spigot.jar,ViaVersion-*.jar,ViaBackwards-*.jar"
       REMOVE_OLD_MODS_DEPTH: "1"
+      PATCH_DEFINITIONS: /usapo-paper-patches
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/2.11.1/builds/1208/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/138/downloads/spigot

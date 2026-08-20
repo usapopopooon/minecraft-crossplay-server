@@ -1,0 +1,29 @@
+{
+  "file": "/data/config/paper-world-defaults.yml",
+  "ops": [
+    {
+      "$set": {
+        "path": "$.entities.spawning['alt-item-despawn-rate'].enabled",
+        "value": true
+      }
+    },
+    {
+      "$set": {
+        "path": "$.entities.spawning['alt-item-despawn-rate'].items",
+        "value": {
+          "acacia_sapling": 18000,
+          "azalea": 18000,
+          "birch_sapling": 18000,
+          "cherry_sapling": 18000,
+          "dark_oak_sapling": 18000,
+          "flowering_azalea": 18000,
+          "jungle_sapling": 18000,
+          "mangrove_propagule": 18000,
+          "oak_sapling": 18000,
+          "pale_oak_sapling": 18000,
+          "spruce_sapling": 18000
+        }
+      }
+    }
+  ]
+}
