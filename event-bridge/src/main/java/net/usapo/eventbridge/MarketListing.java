@@ -48,6 +48,6 @@ record MarketListing(
     }
 
     String label() {
-        return MarketItems.displayName(item) + " x" + item.getAmount();
+        return MarketItems.marketDisplayName(item) + " x" + item.getAmount();
     }
 }

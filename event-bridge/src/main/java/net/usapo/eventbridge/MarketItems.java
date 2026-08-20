@@ -6,12 +6,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.renderer.TranslatableComponentRenderer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.TranslationStore;
+import org.bukkit.Keyed;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
@@ -21,20 +25,90 @@ final class MarketItems {
             PlainTextComponentSerializer.plainText();
     private static final TranslatableComponentRenderer<Locale> JAPANESE_RENDERER =
             loadJapaneseRenderer();
+    private static final List<DisplayedEnchantment> DISPLAYED_ENCHANTMENTS = List.of(
+            new DisplayedEnchantment("efficiency", "効率", true),
+            new DisplayedEnchantment("unbreaking", "耐久力", true),
+            new DisplayedEnchantment("fortune", "幸運", true),
+            new DisplayedEnchantment("silk_touch", "シルクタッチ", false),
+            new DisplayedEnchantment("mending", "修繕", false));
+    private static final List<String> ROMAN_LEVELS =
+            List.of("", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ");
 
     private MarketItems() {}
 
     static String displayName(ItemStack item) {
         Component effectiveName = item.effectiveName();
         if (effectiveName != null) {
-            String translated = PLAIN_TEXT
-                    .serialize(JAPANESE_RENDERER.render(effectiveName, DISPLAY_LOCALE))
-                    .strip();
+            String translated = translate(effectiveName);
             if (!translated.isEmpty()) {
                 return translated;
             }
         }
         return item.getType().getKey().getKey().replace('_', ' ');
+    }
+
+    static String marketDisplayName(ItemStack item) {
+        String effectiveName = displayName(item);
+        if (!isGeneratedEnchantmentDescription(item, effectiveName)) {
+            return effectiveName;
+        }
+        String materialName = translate(Component.translatable(item.getType().translationKey()));
+        if (materialName.isEmpty() || materialName.equals(effectiveName)) {
+            return effectiveName;
+        }
+        return effectiveName + "（" + materialName + "）";
+    }
+
+    private static boolean isGeneratedEnchantmentDescription(ItemStack item, String name) {
+        Map<String, Integer> remaining = new HashMap<>();
+        for (Map.Entry<?, Integer> entry : item.getEnchantments().entrySet()) {
+            if (!(entry.getKey() instanceof Keyed keyed)
+                    || remaining.put(keyed.getKey().getKey(), entry.getValue()) != null) {
+                return false;
+            }
+        }
+        if (remaining.isEmpty()) {
+            return false;
+        }
+
+        StringBuilder enchantments = new StringBuilder();
+        for (DisplayedEnchantment displayed : DISPLAYED_ENCHANTMENTS) {
+            Integer level = remaining.remove(displayed.key());
+            if (level == null) {
+                continue;
+            }
+            if (level <= 0 || level >= ROMAN_LEVELS.size()) {
+                return false;
+            }
+            enchantments.append(displayed.name());
+            if (displayed.showsLevel()) {
+                enchantments.append(ROMAN_LEVELS.get(level));
+            } else if (level != 1) {
+                return false;
+            }
+        }
+        if (!remaining.isEmpty()) {
+            return false;
+        }
+
+        String prefix = enchantments + "付き";
+        String materialKey = item.getType().getKey().getKey();
+        if (materialKey.endsWith("_pickaxe")) {
+            return name.equals(prefix + "ツルハシ") || name.equals(prefix + "のツルハシ");
+        }
+        if (materialKey.endsWith("_axe")) {
+            return name.equals(prefix + "の斧");
+        }
+        if (materialKey.endsWith("_shovel")) {
+            return name.equals(prefix + "のシャベル");
+        }
+        return false;
+    }
+
+    private static String translate(Component name) {
+        return PLAIN_TEXT
+                .serialize(JAPANESE_RENDERER.render(name, DISPLAY_LOCALE))
+                .strip();
     }
 
     private static TranslatableComponentRenderer<Locale> loadJapaneseRenderer() {
@@ -146,4 +220,6 @@ final class MarketItems {
         }
         return snapshot;
     }
+
+    private record DisplayedEnchantment(String key, String name, boolean showsLevel) {}
 }

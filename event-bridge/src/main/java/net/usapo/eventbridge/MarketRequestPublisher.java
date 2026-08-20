@@ -40,7 +40,7 @@ final class MarketRequestPublisher implements MarketRequestSink {
                 + "|"
                 + encode(listing.item().getType().getKey().toString())
                 + "|"
-                + encode(MarketItems.displayName(listing.item()))
+                + encode(MarketItems.marketDisplayName(listing.item()))
                 + "|"
                 + listing.item().getAmount()
                 + "|"

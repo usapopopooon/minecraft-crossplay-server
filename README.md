@@ -83,7 +83,11 @@ data prevent a lost RCON response from duplicating the item.
 Java command output, Bedrock forms, and the listing event sent to mc-bot all
 render the item's effective name through the bundled Minecraft Java 26.2
 Japanese translations. This covers data-dependent vanilla names while
-preserving custom item names, so every market surface uses the same name.
+preserving custom item names. When that effective name differs from the item's
+underlying type, recognized enchantment-description names append the translated
+type in parentheses, for example
+`効率Ⅴ耐久力Ⅲ修繕付きの斧（ダイヤモンドの斧）`. Player-assigned names stay
+exactly as entered. Every market surface uses the same name.
 
 Linked players can create item-delivery quests with `/quest`. The first release
 accepts only ordinary stackable items without custom names, enchantments, or

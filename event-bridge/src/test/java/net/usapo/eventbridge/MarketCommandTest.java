@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Keyed;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -147,6 +148,52 @@ final class MarketCommandTest {
     }
 
     @Test
+    void commandListingShowsCustomNameTogetherWithUnderlyingMaterial() {
+        MemoryRepository repository = new MemoryRepository();
+        repository.create(
+                EVENT_ID,
+                SELLER_ID,
+                "Seller",
+                1_000,
+                item(
+                        material("diamond_axe"),
+                        1,
+                        Component.text("効率Ⅴ耐久力Ⅲ修繕付きの斧"),
+                        axeEnchantments()));
+        repository.create(
+                UUID.randomUUID(),
+                SELLER_ID,
+                "Seller",
+                1_000,
+                item(
+                        material("diamond_axe"),
+                        1,
+                        Component.text("夜伐り"),
+                        axeEnchantments()));
+        MarketCommand command = new MarketCommand(
+                repository,
+                new MarketRequestSink() {
+                    @Override
+                    public void publishListing(MarketListing listing) {}
+
+                    @Override
+                    public void publishRequest(
+                            String kind, long listingId, int priceXp, Player player) {}
+                },
+                (player, handler) -> false,
+                pendingKey());
+        List<String> messages = new ArrayList<>();
+        Player buyer = player("Buyer", BUYER_ID, new AtomicReference<>(), messages);
+
+        command.onCommand(buyer, null, "market", new String[] {"list"});
+
+        assertTrue(messages.stream().anyMatch(message -> message.contains(
+                "#1 効率Ⅴ耐久力Ⅲ修繕付きの斧（ダイヤモンドの斧） x1 / 1000 サーバーXP")));
+        assertTrue(messages.stream()
+                .anyMatch(message -> message.contains("#2 夜伐り x1 / 1000 サーバーXP")));
+    }
+
+    @Test
     void failedListingPublicationKeepsEscrowAndRecoversWithoutDuplicatingItem() {
         MemoryRepository repository = new MemoryRepository();
         AtomicBoolean failPublication = new AtomicBoolean(true);
@@ -247,16 +294,52 @@ final class MarketCommandTest {
     }
 
     private static ItemStack item(Material material, int amount) {
+        boolean block = material.isBlock();
+        String materialKey = material.getKey().getKey();
+        return item(
+                material,
+                amount,
+                Component.translatable(
+                        (block ? "block.minecraft." : "item.minecraft.") + materialKey));
+    }
+
+    private static ItemStack item(Material material, int amount, Component effectiveName) {
+        return item(material, amount, effectiveName, Map.of());
+    }
+
+    private static ItemStack item(
+            Material material,
+            int amount,
+            Component effectiveName,
+            Map<Keyed, Integer> enchantments) {
         ItemStack item = mock(ItemStack.class);
         String materialKey = material.getKey().getKey();
         when(item.clone()).thenReturn(item);
         when(item.getType()).thenReturn(material);
         when(item.getAmount()).thenReturn(amount);
         when(item.serialize()).thenReturn(Map.of("type", materialKey, "amount", amount));
-        boolean block = material.isBlock();
-        when(item.effectiveName()).thenReturn(Component.translatable(
-                (block ? "block.minecraft." : "item.minecraft.") + materialKey));
+        when(item.effectiveName()).thenReturn(effectiveName);
+        stubEnchantments(item, enchantments);
         return item;
+    }
+
+    private static Map<Keyed, Integer> axeEnchantments() {
+        return Map.of(
+                keyed("efficiency"),
+                5,
+                keyed("unbreaking"),
+                3,
+                keyed("mending"),
+                1);
+    }
+
+    private static Keyed keyed(String key) {
+        return () -> NamespacedKey.minecraft(key);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void stubEnchantments(ItemStack item, Map<Keyed, Integer> enchantments) {
+        when(item.getEnchantments()).thenReturn((Map) enchantments);
     }
 
     @SuppressWarnings("deprecation")
@@ -265,6 +348,8 @@ final class MarketCommandTest {
         when(material.isAir()).thenReturn(false);
         when(material.isBlock()).thenReturn(key.equals("ancient_debris"));
         when(material.getKey()).thenReturn(NamespacedKey.minecraft(key));
+        when(material.translationKey()).thenReturn(
+                (key.equals("ancient_debris") ? "block.minecraft." : "item.minecraft.") + key);
         return material;
     }
 
