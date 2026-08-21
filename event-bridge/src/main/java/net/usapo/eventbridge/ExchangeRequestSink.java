@@ -1,8 +1,9 @@
 package net.usapo.eventbridge;
 
+import java.util.UUID;
 import org.bukkit.entity.Player;
 
 @FunctionalInterface
 interface ExchangeRequestSink {
-    void publish(ExchangeSelection selection, Player player);
+    UUID publish(ExchangeSelection selection, Player player);
 }

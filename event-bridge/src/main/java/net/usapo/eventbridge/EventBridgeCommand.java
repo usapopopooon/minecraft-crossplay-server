@@ -10,16 +10,19 @@ final class EventBridgeCommand implements CommandExecutor {
     private final EmeraldDiamondCommand emeraldDiamond;
     private final MarketTransferCommand marketTransfer;
     private final QuestControlCommand questControl;
+    private final MaterialBuybackCommand materialBuyback;
 
     EventBridgeCommand(
             VoiceBonusCommand voiceBonus,
             EmeraldDiamondCommand emeraldDiamond,
             MarketTransferCommand marketTransfer,
-            QuestControlCommand questControl) {
+            QuestControlCommand questControl,
+            MaterialBuybackCommand materialBuyback) {
         this.voiceBonus = voiceBonus;
         this.emeraldDiamond = emeraldDiamond;
         this.marketTransfer = marketTransfer;
         this.questControl = questControl;
+        this.materialBuyback = materialBuyback;
     }
 
     @Override
@@ -39,6 +42,11 @@ final class EventBridgeCommand implements CommandExecutor {
         }
         if (arguments.length > 0 && arguments[0].startsWith("quest-")) {
             return questControl.onCommand(sender, command, label, arguments);
+        }
+        if (arguments.length > 0
+                && (arguments[0].equals("material-buyback")
+                        || arguments[0].equals("material-buyback-release"))) {
+            return materialBuyback.onCommand(sender, command, label, arguments);
         }
         return false;
     }

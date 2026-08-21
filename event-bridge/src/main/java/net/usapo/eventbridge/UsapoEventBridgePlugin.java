@@ -71,12 +71,20 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                 questActions,
                 questRepository,
                 playerId -> getServer().getPlayer(playerId));
+        MaterialBuybackPendingRegistry materialBuybacks = new MaterialBuybackPendingRegistry();
+        MaterialBuybackCommand materialBuybackCommand = new MaterialBuybackCommand(
+                playerId -> getServer().getPlayer(playerId),
+                new NamespacedKey(this, "material_buyback_history"),
+                new MaterialBuybackExchange(),
+                materialBuybacks,
+                getLogger());
         Objects.requireNonNull(getCommand("usapo-event-bridge"))
                 .setExecutor(new EventBridgeCommand(
                         voiceBonusCommand,
                         emeraldDiamondCommand,
                         marketTransferCommand,
-                        questControlCommand));
+                        questControlCommand,
+                        materialBuybackCommand));
         ItemGachaRequestPublisher itemGachaPublisher =
                 new ItemGachaRequestPublisher(getLogger()::info);
         BedrockGachaFormGateway itemGachaForms = (player, selectionHandler) -> false;
@@ -98,11 +106,16 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         PluginCommand gacha = Objects.requireNonNull(getCommand("gacha"));
         gacha.setExecutor(itemGachaCommand);
         gacha.setTabCompleter(itemGachaCommand);
+        JavaExchangeChestMenu exchangeMenus = new JavaExchangeChestMenu(this);
         ExchangeCommand exchangeCommand = new ExchangeCommand(
-                new ExchangeRequestPublisher(getLogger()::info), exchangeForms);
+                new ExchangeRequestPublisher(getLogger()::info),
+                exchangeForms,
+                exchangeMenus,
+                materialBuybacks);
         PluginCommand exchange = Objects.requireNonNull(getCommand("exchange"));
         exchange.setExecutor(exchangeCommand);
         exchange.setTabCompleter(exchangeCommand);
+        getServer().getPluginManager().registerEvents(exchangeMenus, this);
         MarketRequestPublisher marketPublisher = new MarketRequestPublisher(getLogger()::info);
         MarketCommand marketCommand = new MarketCommand(
                 marketRepository,

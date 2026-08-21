@@ -4,7 +4,8 @@ enum ExchangeKind {
     BALANCE("balance"),
     XP("xp"),
     RESOURCE("resource"),
-    EMERALD_DIAMOND("emerald_diamond");
+    EMERALD_DIAMOND("emerald_diamond"),
+    MATERIAL_BUYBACK("material_buyback");
 
     private final String wireName;
 

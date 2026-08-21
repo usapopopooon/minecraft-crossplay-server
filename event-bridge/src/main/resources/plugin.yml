@@ -8,7 +8,7 @@ softdepend: [floodgate]
 commands:
   exchange:
     description: Opens the Minecraft exchange menu.
-    usage: /exchange [xp|resource|emerald-diamond|balance]
+    usage: /exchange [xp|resource|emerald-diamond|buyback|balance]
     permission: usapo.exchange.use
   gacha:
     description: Opens the Minecraft item gacha.
@@ -37,6 +37,8 @@ commands:
       /usapo-event-bridge quest-abandon <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-cancel <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-invalidate <quest> <owner-uuid> <request-uuid>
+      /usapo-event-bridge material-buyback <player-uuid> <item-id> <count> <request-uuid>
+      /usapo-event-bridge material-buyback-release <player-uuid> <request-uuid>
     permission: usapo.eventbridge.control
 permissions:
   usapo.exchange.use:

@@ -29,12 +29,13 @@ final class ExchangeRequestPublisher implements ExchangeRequestSink {
     }
 
     @Override
-    public void publish(ExchangeSelection selection, Player player) {
+    public UUID publish(ExchangeSelection selection, Player player) {
+        UUID requestId = requestIds.get();
         String encodedName = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(player.getName().getBytes(StandardCharsets.UTF_8));
         logSink.accept(PREFIX
-                + requestIds.get()
+                + requestId
                 + "|"
                 + player.getUniqueId()
                 + "|"
@@ -51,5 +52,6 @@ final class ExchangeRequestPublisher implements ExchangeRequestSink {
                 + selection.expectedReward()
                 + "|"
                 + clock.instant().toEpochMilli());
+        return requestId;
     }
 }

@@ -20,19 +20,70 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
 
     private final ExchangeRequestSink requestSink;
     private final BedrockExchangeFormGateway forms;
+    private final JavaExchangeMenuGateway menus;
+    private final MaterialBuybackPendingRegistry pendingBuybacks;
     private final LongSupplier nowMillis;
     private final Map<UUID, Long> lastRequests = new ConcurrentHashMap<>();
 
     ExchangeCommand(ExchangeRequestSink requestSink, BedrockExchangeFormGateway forms) {
-        this(requestSink, forms, Clock.systemUTC()::millis);
+        this(
+                requestSink,
+                forms,
+                (player, handler) -> false,
+                new MaterialBuybackPendingRegistry(),
+                Clock.systemUTC()::millis);
+    }
+
+    ExchangeCommand(
+            ExchangeRequestSink requestSink,
+            BedrockExchangeFormGateway forms,
+            JavaExchangeMenuGateway menus) {
+        this(
+                requestSink,
+                forms,
+                menus,
+                new MaterialBuybackPendingRegistry(),
+                Clock.systemUTC()::millis);
+    }
+
+    ExchangeCommand(
+            ExchangeRequestSink requestSink,
+            BedrockExchangeFormGateway forms,
+            JavaExchangeMenuGateway menus,
+            MaterialBuybackPendingRegistry pendingBuybacks) {
+        this(requestSink, forms, menus, pendingBuybacks, Clock.systemUTC()::millis);
     }
 
     ExchangeCommand(
             ExchangeRequestSink requestSink,
             BedrockExchangeFormGateway forms,
             LongSupplier nowMillis) {
+        this(
+                requestSink,
+                forms,
+                (player, handler) -> false,
+                new MaterialBuybackPendingRegistry(),
+                nowMillis);
+    }
+
+    ExchangeCommand(
+            ExchangeRequestSink requestSink,
+            BedrockExchangeFormGateway forms,
+            JavaExchangeMenuGateway menus,
+            LongSupplier nowMillis) {
+        this(requestSink, forms, menus, new MaterialBuybackPendingRegistry(), nowMillis);
+    }
+
+    ExchangeCommand(
+            ExchangeRequestSink requestSink,
+            BedrockExchangeFormGateway forms,
+            JavaExchangeMenuGateway menus,
+            MaterialBuybackPendingRegistry pendingBuybacks,
+            LongSupplier nowMillis) {
         this.requestSink = requestSink;
         this.forms = forms;
+        this.menus = menus;
+        this.pendingBuybacks = pendingBuybacks;
         this.nowMillis = nowMillis;
     }
 
@@ -47,9 +98,15 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (arguments.length == 0) {
-            if (!forms.open(player, selection -> submit(player, selection))) {
+            if (!forms.open(player, selection -> submit(player, selection))
+                    && !menus.open(player, selection -> submit(player, selection))) {
                 sendUsage(player);
             }
+            return true;
+        }
+
+        if (arguments[0].equalsIgnoreCase("buyback")) {
+            submitBuyback(player, arguments);
             return true;
         }
 
@@ -57,6 +114,45 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                 selection -> submit(player, selection),
                 () -> sendUsage(player));
         return true;
+    }
+
+    private void submitBuyback(Player player, String[] arguments) {
+        if (arguments.length != 2) {
+            sendUsage(player);
+            return;
+        }
+        MaterialBuybackCatalog.Rate rate = MaterialBuybackCatalog
+                .find(player.getInventory().getItemInMainHand().getType())
+                .orElse(null);
+        if (rate == null) {
+            player.sendMessage("買取対象の通常ブロックをメインハンドに持ってください。");
+            return;
+        }
+        int available = MaterialBuybackCatalog.plainCount(player, rate.material());
+        String amount = arguments[1].toLowerCase(Locale.ROOT);
+        int count = switch (amount) {
+            case "1", "2", "4", "8", "16" ->
+                    Integer.parseInt(amount) * MaterialBuybackCatalog.STACK_SIZE;
+            case "max" -> Math.min(
+                    available / MaterialBuybackCatalog.STACK_SIZE
+                            * MaterialBuybackCatalog.STACK_SIZE,
+                    MaterialBuybackCatalog.maximumDailyItemCount(rate));
+            case "all" -> available / MaterialBuybackCatalog.STACK_SIZE
+                    * MaterialBuybackCatalog.STACK_SIZE;
+            default -> 0;
+        };
+        if (amount.equals("all")
+                && count > MaterialBuybackCatalog.maximumDailyItemCount(rate)) {
+            player.sendMessage("すべて交換すると、未使用でも1日の買取上限を超えます。"
+                    + "/exchange buyback max で1回に選べる最大数を指定できます。");
+            return;
+        }
+        if (count < MaterialBuybackCatalog.STACK_SIZE || count > available) {
+            player.sendMessage("交換できる通常の" + rate.itemName() + "が不足しています。"
+                    + "64個単位でインベントリに入れてください。");
+            return;
+        }
+        submit(player, MaterialBuybackCatalog.selection(rate, count));
     }
 
     private static Optional<ExchangeSelection> parse(String[] arguments) {
@@ -90,6 +186,12 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         if (!player.isOnline()) {
             return;
         }
+        if (selection.kind() == ExchangeKind.MATERIAL_BUYBACK
+                && pendingBuybacks.pendingRequest(player.getUniqueId()).isPresent()) {
+            player.sendMessage("前の資材買取を処理中です。結果が表示されるまでお待ちください。"
+                    + "長時間続く場合は運営へご連絡ください。");
+            return;
+        }
         long now = nowMillis.getAsLong();
         Long previous = lastRequests.put(player.getUniqueId(), now);
         if (previous != null && now - previous < REQUEST_COOLDOWN_MILLIS) {
@@ -97,7 +199,10 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             player.sendMessage("直前の交換要求を処理中です。少し待ってからお試しください。");
             return;
         }
-        requestSink.publish(selection, player);
+        UUID requestId = requestSink.publish(selection, player);
+        if (selection.kind() == ExchangeKind.MATERIAL_BUYBACK) {
+            pendingBuybacks.register(player.getUniqueId(), requestId);
+        }
         if (selection.kind() == ExchangeKind.BALANCE) {
             player.sendMessage("XP残高を確認しています。まもなく本人だけに表示されます。");
         } else {
@@ -110,6 +215,8 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("XP交換: /exchange xp <Minecraft XP量: 50|250|500|5000>");
         player.sendMessage("資源交換: /exchange resource <diamond|emerald> <個数>");
         player.sendMessage("手持ち交換: /exchange emerald-diamond <32|64>");
+        player.sendMessage(
+                "資材買取: /exchange buyback <1|2|4|8|16|max|all>（メインハンドで種類を指定）");
         player.sendMessage("XP残高: /exchange balance");
     }
 
@@ -120,7 +227,9 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             @NotNull String alias,
             @NotNull String[] arguments) {
         if (arguments.length == 1) {
-            return matching(List.of("xp", "resource", "emerald-diamond", "balance"), arguments[0]);
+            return matching(
+                    List.of("xp", "resource", "emerald-diamond", "buyback", "balance"),
+                    arguments[0]);
         }
         String operation = arguments[0].toLowerCase(Locale.ROOT);
         if (arguments.length == 2 && operation.equals("xp")) {
@@ -131,6 +240,9 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         }
         if (arguments.length == 2 && operation.equals("emerald-diamond")) {
             return matching(List.of("32", "64"), arguments[1]);
+        }
+        if (arguments.length == 2 && operation.equals("buyback")) {
+            return matching(List.of("1", "2", "4", "8", "16", "max", "all"), arguments[1]);
         }
         if (arguments.length == 3 && operation.equals("resource")) {
             String resource = arguments[1].toLowerCase(Locale.ROOT);

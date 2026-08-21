@@ -28,6 +28,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 .button("Minecraft XPへ交換")
                 .button("資源へ交換")
                 .button("手持ちエメラルドを交換")
+                .button("資材をサーバーXPへ交換")
                 .button("XP残高を確認")
                 .button("閉じる")
                 .validResultHandler(response -> runOnMain(() -> {
@@ -50,7 +51,8 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                                 ExchangeCatalog.EMERALD_DIAMOND,
                                 selectionHandler,
                                 () -> open(player, selectionHandler));
-                        case 3 -> selectionHandler.accept(ExchangeSelection.balance());
+                        case 3 -> openBuybackMaterials(player, selectionHandler);
+                        case 4 -> selectionHandler.accept(ExchangeSelection.balance());
                         default -> {
                             // 閉じるボタンでは何もしない。
                         }
@@ -58,6 +60,93 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 }))
                 .build();
         return floodgate.sendForm(player.getUniqueId(), form);
+    }
+
+    private void openBuybackMaterials(
+            Player player, Consumer<ExchangeSelection> selectionHandler) {
+        List<MaterialBuybackCatalog.Rate> available = MaterialBuybackCatalog.RATES.stream()
+                .filter(rate -> MaterialBuybackCatalog.plainCount(player, rate.material())
+                        >= MaterialBuybackCatalog.STACK_SIZE)
+                .toList();
+        if (available.isEmpty()) {
+            SimpleForm form = SimpleForm.builder()
+                    .title("資材買取")
+                    .content("交換できる通常資材がありません。対象資材を64個以上"
+                            + "インベントリへ入れてください。\n"
+                            + "対象: 土・砂・砂岩・深層岩・深層岩の丸石・凝灰岩")
+                    .button("戻る")
+                    .validResultHandler(response -> runOnMain(() -> open(player, selectionHandler)))
+                    .build();
+            sendFormOrFallback(player, form);
+            return;
+        }
+        var builder = SimpleForm.builder()
+                .title("資材買取")
+                .content("交換する資材を選んでください。通常アイテムだけを64個単位で回収します。"
+                        + "\n1日の買取上限: 1,500 サーバーXP（毎日0時・日本時間に更新）"
+                        + "\n本日の残り枠は処理時に確認し、超過時は回収しません。"
+                        + "\n獲得後は「資源へ交換」からエメラルドにもできます。");
+        available.forEach(rate -> {
+            int count = MaterialBuybackCatalog.plainCount(player, rate.material());
+            int exchangeable = count / MaterialBuybackCatalog.STACK_SIZE
+                    * MaterialBuybackCatalog.STACK_SIZE;
+            builder.button(rate.itemName() + ": 通常品" + count + "個（交換可能"
+                    + exchangeable + "個）\n64個 → "
+                    + rate.rewardXpPerStack() + " サーバーXP");
+        });
+        SimpleForm form = builder
+                .button("戻る")
+                .validResultHandler(response -> runOnMain(() -> {
+                    int selected = response.clickedButtonId();
+                    if (selected >= 0 && selected < available.size()) {
+                        openBuybackAmounts(player, available.get(selected), selectionHandler);
+                    } else {
+                        open(player, selectionHandler);
+                    }
+                }))
+                .build();
+        sendFormOrFallback(player, form);
+    }
+
+    private void openBuybackAmounts(
+            Player player,
+            MaterialBuybackCatalog.Rate rate,
+            Consumer<ExchangeSelection> selectionHandler) {
+        int available = MaterialBuybackCatalog.plainCount(player, rate.material());
+        int all = available / MaterialBuybackCatalog.STACK_SIZE
+                * MaterialBuybackCatalog.STACK_SIZE;
+        if (all < MaterialBuybackCatalog.STACK_SIZE) {
+            openBuybackMaterials(player, selectionHandler);
+            return;
+        }
+        List<MaterialBuybackCatalog.QuantityOption> options =
+                MaterialBuybackCatalog.quantityOptions(rate, all);
+        var builder = SimpleForm.builder()
+                .title(rate.itemName() + "の買取数")
+                .content("数量を選ぶと、回収数と獲得サーバーXPの確認画面が表示されます。");
+        options.forEach(option -> {
+            ExchangeSelection selection = MaterialBuybackCatalog.selection(
+                    rate, option.itemCount());
+            builder.button(option.label() + "\n" + selection.description());
+        });
+        SimpleForm form = builder
+                .button("戻る")
+                .validResultHandler(response -> runOnMain(() -> {
+                    int selected = response.clickedButtonId();
+                    if (selected >= 0 && selected < options.size()) {
+                        ExchangeSelection selection = MaterialBuybackCatalog.selection(
+                                rate, options.get(selected).itemCount());
+                        openConfirmation(
+                                player,
+                                selection,
+                                selectionHandler,
+                                () -> openBuybackAmounts(player, rate, selectionHandler));
+                    } else {
+                        openBuybackMaterials(player, selectionHandler);
+                    }
+                }))
+                .build();
+        sendFormOrFallback(player, form);
     }
 
     private void openOptions(
@@ -107,7 +196,12 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
         }
         ModalForm confirmation = ModalForm.builder()
                 .title("交換内容の確認")
-                .content(selection.description() + "\nこの内容で交換しますか？")
+                .content(selection.description()
+                        + (selection.kind() == ExchangeKind.MATERIAL_BUYBACK
+                                ? "\n名前や特殊データのない通常アイテムだけを回収します。"
+                                        + "\n獲得後は「資源へ交換」からエメラルドにもできます。"
+                                : "")
+                        + "\nこの内容で交換しますか？")
                 .button1("交換する")
                 .button2("戻る")
                 .validResultHandler(response -> runOnMain(() -> {

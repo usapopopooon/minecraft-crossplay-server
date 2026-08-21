@@ -38,13 +38,20 @@ and stores recent request UUIDs in player data so an RCON response retry cannot
 repeat an exchange. Successful exchanges are announced in Minecraft and
 written as a UUID-based structured audit event for mc-bot's Discord log.
 
-Linked players can open the shared exchange menu with `/exchange`. On
-Floodgate/Bedrock clients this opens a touch-friendly menu and confirmation
-screen for server XP to Minecraft XP, server XP to resources, held emeralds to
-diamonds, and a private XP balance check. Java clients, or clients where a form
-cannot be shown, can use `/exchange xp <50|250|500|5000>`,
+Linked players can open the shared exchange menu with `/exchange`. Java clients
+receive a chest menu, while Floodgate/Bedrock clients receive a touch-friendly
+form. Both include a confirmation screen for server XP to Minecraft XP, server
+XP to resources, held emeralds to diamonds, ordinary material buyback, and a
+private XP balance check. The material buyback accepts full stacks of dirt,
+sand, sandstone, deepslate, cobbled deepslate, and tuff. It ignores named or
+metadata-bearing items and awards at most 1,500 server XP per player per JST
+day, resetting at 00:00 JST. The completion message includes the updated server
+XP balance and the remaining daily buyback allowance. Clients where a menu
+cannot be shown can use `/exchange xp <50|250|500|5000>`,
 `/exchange resource <diamond|emerald> <count>`,
-`/exchange emerald-diamond <32|64>`, and `/exchange balance`. The request carries
+`/exchange emerald-diamond <32|64>`,
+`/exchange buyback <1|2|4|8|16|max|all>` while holding the material in the main
+hand, and `/exchange balance`. The request carries
 the exact displayed cost, but mc-bot checks it again against level-bot's current
 shop before spending XP. Price changes are rejected and the player is asked to
 open the menu again. Results are sent privately to the requesting player; the

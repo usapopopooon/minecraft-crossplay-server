@@ -23,8 +23,10 @@ final class ExchangeRequestPublisherTest {
                 Clock.fixed(Instant.parse("2026-08-17T00:00:00Z"), ZoneOffset.UTC),
                 () -> requestId);
 
-        publisher.publish(ExchangeCatalog.RESOURCES.get(5), player(".Yuki1991", playerId));
+        UUID published =
+                publisher.publish(ExchangeCatalog.RESOURCES.get(5), player(".Yuki1991", playerId));
 
+        assertEquals(requestId, published);
         assertEquals(
                 List.of("USAPO_EXCHANGE_REQUEST|1|" + requestId + "|" + playerId
                         + "|Lll1a2kxOTkx|resource|minecraft:diamond|3|2160|3|1786924800000"),
