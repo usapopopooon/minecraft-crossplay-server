@@ -153,6 +153,13 @@ azaleas. The image applies this narrowly scoped Paper world-default patch at
 startup, so other dropped items and the vanilla leaf loot tables are unchanged.
 Applying the setting to a running server requires a planned Minecraft restart.
 
+The per-player Paper packet limit is raised from the default 500 to 1,000
+packets per seven-second interval. The existing interval and `KICK` action stay
+unchanged, preserving the rate-limit protection while allowing larger legitimate
+bursts from building and cross-play clients. The image reapplies this setting at
+startup from `paper-patches/packet-rate-limit.json`; applying it to a running
+server requires a planned Minecraft restart.
+
 The default runtime profile targets up to 20 players on a small dedicated
 host: a 6 GiB Java heap, an 8 GiB container memory limit, a view distance of 16,
 and a simulation distance of 4. Aikar JVM flags are enabled to reduce garbage
