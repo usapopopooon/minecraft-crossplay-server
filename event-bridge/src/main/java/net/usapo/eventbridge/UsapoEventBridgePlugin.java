@@ -103,11 +103,14 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         PluginCommand exchange = Objects.requireNonNull(getCommand("exchange"));
         exchange.setExecutor(exchangeCommand);
         exchange.setTabCompleter(exchangeCommand);
+        JavaChestMenus javaChestMenus = new JavaChestMenus(this);
+        getServer().getPluginManager().registerEvents(javaChestMenus, this);
         MarketRequestPublisher marketPublisher = new MarketRequestPublisher(getLogger()::info);
         MarketCommand marketCommand = new MarketCommand(
                 marketRepository,
                 marketPublisher,
                 marketForms,
+                new JavaMarketChestMenu(marketRepository, javaChestMenus),
                 new NamespacedKey(this, "pending_market_escrow"));
         PluginCommand market = Objects.requireNonNull(getCommand("market"));
         market.setExecutor(marketCommand);
@@ -115,11 +118,13 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(marketCommand, this);
         marketRepository.activeListings().forEach(marketPublisher::publishListing);
         getServer().getOnlinePlayers().forEach(marketCommand::recoverPendingEscrow);
+        NamespacedKey questDraftKey = new NamespacedKey(this, "quest_draft");
         QuestCommand questCommand = new QuestCommand(
                 questRepository,
                 questActions,
                 questForms,
-                new NamespacedKey(this, "quest_draft"),
+                new JavaQuestChestMenu(questRepository, javaChestMenus, questDraftKey),
+                questDraftKey,
                 new NamespacedKey(this, "pending_quest_reward"),
                 new NamespacedKey(this, "quest_claim_history"));
         PluginCommand quest = Objects.requireNonNull(getCommand("quest"));

@@ -148,6 +148,73 @@ final class MarketCommandTest {
     }
 
     @Test
+    void javaMenuIsUsedWhenBedrockFormIsUnavailableAndSharesTheActionPath() {
+        MemoryRepository repository = new MemoryRepository();
+        List<String> events = new ArrayList<>();
+        AtomicBoolean javaMenuOpened = new AtomicBoolean();
+        AtomicReference<java.util.function.Consumer<MarketFormAction>> selection =
+                new AtomicReference<>();
+        MarketCommand command = new MarketCommand(
+                repository,
+                new MarketRequestSink() {
+                    @Override
+                    public void publishListing(MarketListing listing) {}
+
+                    @Override
+                    public void publishRequest(
+                            String kind, long listingId, int priceXp, Player player) {
+                        events.add(kind + "|" + listingId + "|" + priceXp);
+                    }
+                },
+                (player, handler) -> false,
+                (player, handler) -> {
+                    javaMenuOpened.set(true);
+                    selection.set(handler);
+                    return true;
+                },
+                pendingKey());
+        List<String> messages = new ArrayList<>();
+        Player buyer = player("Buyer", BUYER_ID, new AtomicReference<>(), messages);
+
+        command.onCommand(buyer, null, "market", new String[0]);
+        selection.get().accept(new MarketFormAction(MarketFormAction.Kind.BALANCE, 0, 0));
+
+        assertTrue(javaMenuOpened.get());
+        assertEquals(List.of("balance|0|0"), events);
+        assertTrue(messages.stream().noneMatch(message -> message.startsWith("商品一覧:")));
+    }
+
+    @Test
+    void bedrockFormRemainsPreferredOverTheJavaMenu() {
+        MemoryRepository repository = new MemoryRepository();
+        AtomicBoolean javaMenuOpened = new AtomicBoolean();
+        MarketCommand command = new MarketCommand(
+                repository,
+                new MarketRequestSink() {
+                    @Override
+                    public void publishListing(MarketListing listing) {}
+
+                    @Override
+                    public void publishRequest(
+                            String kind, long listingId, int priceXp, Player player) {}
+                },
+                (player, handler) -> true,
+                (player, handler) -> {
+                    javaMenuOpened.set(true);
+                    return true;
+                },
+                pendingKey());
+
+        command.onCommand(
+                player("Buyer", BUYER_ID, new AtomicReference<>(), new ArrayList<>()),
+                null,
+                "market",
+                new String[0]);
+
+        assertTrue(!javaMenuOpened.get());
+    }
+
+    @Test
     void commandListingShowsCustomNameTogetherWithUnderlyingMaterial() {
         MemoryRepository repository = new MemoryRepository();
         repository.create(
