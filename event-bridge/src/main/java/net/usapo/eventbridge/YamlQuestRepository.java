@@ -271,7 +271,16 @@ final class YamlQuestRepository implements QuestRepository {
                 nowMillis + OPEN_LIFETIME_MILLIS,
                 0,
                 transitionId);
-        replaceAndSave(current, changed, "abandoned");
+        List<QuestNotice> notices = QuestIssuer.isSystem(current)
+                ? List.of()
+                : List.of(notice(
+                        transitionId,
+                        "assignment-released-owner",
+                        current.id(),
+                        current.ownerId(),
+                        "クエスト #" + current.id() + " は受注解除により再募集しました。"));
+        replaceWithClaimsAndNoticesAndSave(
+                current, changed, List.of(), notices, "abandoned");
         return new QuestTransition(changed, false);
     }
 
@@ -325,7 +334,17 @@ final class YamlQuestRepository implements QuestRepository {
                 ? List.of()
                 : List.of(claim(
                         transitionId, "reward", current.id(), ownerId, current.reward()));
-        replaceWithClaimsAndSave(current, changed, claims, "invalidated");
+        List<QuestNotice> notices = current.workerId() == null
+                ? List.of()
+                : List.of(notice(
+                        transitionId,
+                        "owner-unlinked-worker",
+                        current.id(),
+                        current.workerId(),
+                        "依頼者の参加登録が解除されたため、クエスト #" + current.id()
+                                + " は終了し、受注も解除されました。"));
+        replaceWithClaimsAndNoticesAndSave(
+                current, changed, claims, notices, "invalidated");
         return new QuestTransition(changed, false);
     }
 

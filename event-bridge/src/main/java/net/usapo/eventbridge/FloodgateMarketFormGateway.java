@@ -39,12 +39,14 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         if (!floodgate.isFloodgatePlayer(player.getUniqueId())) {
             return false;
         }
+        int claims = repository.pendingClaims(player.getUniqueId()).size();
         SimpleForm form = SimpleForm.builder()
                 .title("プレイヤーマーケット")
                 .content(INTRODUCTION)
                 .button("商品を見る")
                 .button("手に持ったスタックを出品")
                 .button("自分の出品")
+                .button("返却受取箱（" + claims + "件）")
                 .button(BALANCE_BUTTON_LABEL)
                 .button("閉じる")
                 .validResultHandler(response -> runOnMain(() -> {
@@ -53,6 +55,8 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                         case 1 -> openSell(player, actionHandler);
                         case 2 -> openMine(player, actionHandler);
                         case 3 -> actionHandler.accept(
+                                new MarketFormAction(MarketFormAction.Kind.CLAIM, 0, 0));
+                        case 4 -> actionHandler.accept(
                                 new MarketFormAction(MarketFormAction.Kind.BALANCE, 0, 0));
                         default -> {
                             // 閉じるボタンでは何もしない。

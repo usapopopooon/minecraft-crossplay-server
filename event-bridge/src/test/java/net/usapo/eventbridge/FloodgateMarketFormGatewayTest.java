@@ -47,6 +47,25 @@ final class FloodgateMarketFormGatewayTest {
     }
 
     @Test
+    void rootShowsReturnMailboxCountAndUsesTheClaimAction() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        MarketRepository repository = mock(MarketRepository.class);
+        when(repository.pendingClaims(playerId)).thenReturn(List.of(
+                mock(MarketClaim.class), mock(MarketClaim.class)));
+        Harness harness = harness(repository, playerId, null);
+        List<MarketFormAction> actions = new ArrayList<>();
+
+        harness.gateway().open(harness.player(), actions::add);
+        SimpleForm root = assertInstanceOf(SimpleForm.class, harness.forms().getFirst());
+
+        assertEquals("返却受取箱（2件）", root.buttons().get(3).text());
+        click(root, 3);
+        assertEquals(
+                List.of(new MarketFormAction(MarketFormAction.Kind.CLAIM, 0, 0)),
+                actions);
+    }
+
+    @Test
     void listingFormPagesPastTwentyItemsWithoutLosingNavigation() throws Exception {
         MarketRepository repository = mock(MarketRepository.class);
         UUID playerId = UUID.randomUUID();

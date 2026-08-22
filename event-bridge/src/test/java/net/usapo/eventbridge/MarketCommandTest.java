@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Keyed;
@@ -307,11 +308,83 @@ final class MarketCommandTest {
         assertTrue(messages.stream().anyMatch(message -> message.contains("出品を復旧")));
     }
 
+    @Test
+    void returnedDepartureListingCanBeClaimedFromMarketCommand() {
+        MemoryRepository repository = new MemoryRepository();
+        MarketListing listing = repository.create(
+                EVENT_ID, SELLER_ID, "Seller", 500, item(material("diamond"), 3));
+        repository.returnToMailbox(listing.id(), UUID.randomUUID(), SELLER_ID);
+        MarketCommand command = new MarketCommand(
+                repository,
+                new MarketRequestSink() {
+                    @Override
+                    public void publishListing(MarketListing ignored) {}
+
+                    @Override
+                    public void publishRequest(
+                            String kind, long listingId, int priceXp, Player player) {}
+                },
+                (player, handler) -> false,
+                pendingKey());
+        List<String> messages = new ArrayList<>();
+        Player seller = player("Seller", SELLER_ID, new AtomicReference<>(), messages);
+
+        command.onCommand(seller, null, "market", new String[] {"claim"});
+
+        assertTrue(repository.pendingClaims(SELLER_ID).isEmpty());
+        assertTrue(messages.contains("フリマ返却受取箱から 1 件受け取りました。"));
+    }
+
+    @Test
+    void claimCompletionFailureRetriesWithoutAddingTheItemTwice() {
+        MemoryRepository repository = new MemoryRepository();
+        MarketListing listing = repository.create(
+                EVENT_ID, SELLER_ID, "Seller", 500, item(material("diamond"), 3));
+        repository.returnToMailbox(listing.id(), UUID.randomUUID(), SELLER_ID);
+        repository.failNextClaimCompletion.set(true);
+        MarketCommand command = new MarketCommand(
+                repository,
+                new MarketRequestSink() {
+                    @Override
+                    public void publishListing(MarketListing ignored) {}
+
+                    @Override
+                    public void publishRequest(
+                            String kind, long listingId, int priceXp, Player player) {}
+                },
+                (player, handler) -> false,
+                (player, handler) -> false,
+                pendingKey(),
+                claimHistoryKey());
+        List<String> messages = new ArrayList<>();
+        AtomicInteger additions = new AtomicInteger();
+        Player seller = player(
+                "Seller", SELLER_ID, new AtomicReference<>(), messages, additions);
+
+        command.onCommand(seller, null, "market", new String[] {"claim"});
+        command.onCommand(seller, null, "market", new String[] {"claim"});
+
+        assertEquals(1, additions.get());
+        assertTrue(repository.pendingClaims(SELLER_ID).isEmpty());
+        assertTrue(messages.stream().anyMatch(message -> message.contains("確定を再試行")));
+        assertTrue(messages.contains("フリマ返却受取箱から 1 件受け取りました。"));
+    }
+
     private static Player player(
             String name,
             UUID uniqueId,
             AtomicReference<ItemStack> mainHand,
             List<String> messages) {
+        return player(name, uniqueId, mainHand, messages, new AtomicInteger());
+    }
+
+    private static Player player(
+            String name,
+            UUID uniqueId,
+            AtomicReference<ItemStack> mainHand,
+            List<String> messages,
+            AtomicInteger additions) {
+        ItemStack[] contents = new ItemStack[36];
         PlayerInventory inventory = (PlayerInventory) Proxy.newProxyInstance(
                 PlayerInventory.class.getClassLoader(),
                 new Class<?>[] {PlayerInventory.class},
@@ -321,20 +394,30 @@ final class MarketCommandTest {
                         mainHand.set(arguments[0] == null ? null : ((ItemStack) arguments[0]).clone());
                         yield null;
                     }
+                    case "getStorageContents" -> contents;
+                    case "setStorageContents" -> {
+                        System.arraycopy(arguments[0], 0, contents, 0, contents.length);
+                        yield null;
+                    }
+                    case "addItem" -> {
+                        additions.incrementAndGet();
+                        contents[0] = ((ItemStack[]) arguments[0])[0];
+                        yield new java.util.HashMap<Integer, ItemStack>();
+                    }
                     default -> EventLogPublisherTest.defaultValue(method.getReturnType());
                 });
-        AtomicReference<String> pendingEscrow = new AtomicReference<>();
+        Map<NamespacedKey, String> persistentData = new LinkedHashMap<>();
         PersistentDataContainer data = (PersistentDataContainer) Proxy.newProxyInstance(
                 PersistentDataContainer.class.getClassLoader(),
                 new Class<?>[] {PersistentDataContainer.class},
                 (proxy, method, arguments) -> switch (method.getName()) {
-                    case "get" -> pendingEscrow.get();
+                    case "get" -> persistentData.get(arguments[0]);
                     case "set" -> {
-                        pendingEscrow.set((String) arguments[2]);
+                        persistentData.put((NamespacedKey) arguments[0], (String) arguments[2]);
                         yield null;
                     }
                     case "remove" -> {
-                        pendingEscrow.set(null);
+                        persistentData.remove(arguments[0]);
                         yield null;
                     }
                     default -> EventLogPublisherTest.defaultValue(method.getReturnType());
@@ -385,6 +468,7 @@ final class MarketCommandTest {
         when(item.clone()).thenReturn(item);
         when(item.getType()).thenReturn(material);
         when(item.getAmount()).thenReturn(amount);
+        when(item.getMaxStackSize()).thenReturn(64);
         when(item.serialize()).thenReturn(Map.of("type", materialKey, "amount", amount));
         when(item.effectiveName()).thenReturn(effectiveName);
         stubEnchantments(item, enchantments);
@@ -426,8 +510,15 @@ final class MarketCommandTest {
         return new NamespacedKey("usapo_event_bridge", "pending_market_escrow");
     }
 
+    @SuppressWarnings("deprecation")
+    private static NamespacedKey claimHistoryKey() {
+        return new NamespacedKey("usapo_event_bridge", "market_transfer_history");
+    }
+
     private static final class MemoryRepository implements MarketRepository {
         private final Map<Long, MarketListing> listings = new LinkedHashMap<>();
+        private final Map<UUID, MarketClaim> claims = new LinkedHashMap<>();
+        private final AtomicBoolean failNextClaimCompletion = new AtomicBoolean();
 
         @Override
         public MarketListing create(
@@ -468,6 +559,87 @@ final class MarketCommandTest {
             return listings.values().stream()
                     .filter(listing -> listing.status() == MarketListing.Status.ACTIVE)
                     .toList();
+        }
+
+        @Override
+        public MarketMailboxReturn returnToMailbox(
+                long listingId, UUID requestId, UUID sellerId) {
+            MarketClaim existing = claims.get(requestId);
+            if (existing != null) {
+                return new MarketMailboxReturn(listings.get(listingId), true);
+            }
+            MarketListing current = listings.get(listingId);
+            MarketListing cancelled = new MarketListing(
+                    current.id(),
+                    current.eventId(),
+                    current.sellerId(),
+                    current.sellerName(),
+                    current.priceXp(),
+                    current.item(),
+                    MarketListing.Status.CANCELLED,
+                    requestId,
+                    sellerId);
+            MarketClaim claim = new MarketClaim(
+                    requestId,
+                    listingId,
+                    sellerId,
+                    current.item(),
+                    MarketClaim.Status.PENDING,
+                    null);
+            listings.put(listingId, cancelled);
+            claims.put(requestId, claim);
+            return new MarketMailboxReturn(cancelled, false);
+        }
+
+        @Override
+        public List<MarketClaim> pendingClaims(UUID ownerId) {
+            return claims.values().stream()
+                    .filter(claim -> claim.ownerId().equals(ownerId)
+                            && claim.status() != MarketClaim.Status.DELIVERED)
+                    .toList();
+        }
+
+        @Override
+        public MarketClaim prepareClaim(UUID claimId, UUID ownerId, UUID transferId) {
+            MarketClaim current = claims.get(claimId);
+            MarketClaim changed = new MarketClaim(
+                    current.id(),
+                    current.listingId(),
+                    ownerId,
+                    current.item(),
+                    MarketClaim.Status.DELIVERING,
+                    transferId);
+            claims.put(claimId, changed);
+            return changed;
+        }
+
+        @Override
+        public MarketClaim completeClaim(UUID claimId, UUID ownerId, UUID transferId) {
+            if (failNextClaimCompletion.getAndSet(false)) {
+                throw new IllegalStateException("temporary claim completion failure");
+            }
+            MarketClaim current = claims.get(claimId);
+            MarketClaim changed = new MarketClaim(
+                    current.id(),
+                    current.listingId(),
+                    ownerId,
+                    current.item(),
+                    MarketClaim.Status.DELIVERED,
+                    transferId);
+            claims.put(claimId, changed);
+            return changed;
+        }
+
+        @Override
+        public void abortClaim(UUID claimId, UUID ownerId, UUID transferId) {
+            MarketClaim current = claims.get(claimId);
+            claims.put(claimId, new MarketClaim(
+                    current.id(),
+                    current.listingId(),
+                    ownerId,
+                    current.item(),
+                    MarketClaim.Status.PENDING,
+                    null));
         }
 
         @Override

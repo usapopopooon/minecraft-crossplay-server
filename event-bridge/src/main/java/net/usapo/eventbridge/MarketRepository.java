@@ -21,6 +21,17 @@ interface MarketRepository {
 
     List<MarketListing> activeListings();
 
+    MarketMailboxReturn returnToMailbox(long listingId, UUID requestId, UUID sellerId)
+            throws IOException;
+
+    List<MarketClaim> pendingClaims(UUID ownerId);
+
+    MarketClaim prepareClaim(UUID claimId, UUID ownerId, UUID transferId) throws IOException;
+
+    MarketClaim completeClaim(UUID claimId, UUID ownerId, UUID transferId) throws IOException;
+
+    void abortClaim(UUID claimId, UUID ownerId, UUID transferId) throws IOException;
+
     MarketListing prepareTransfer(long listingId, UUID transferId, UUID recipientId)
             throws IOException;
 

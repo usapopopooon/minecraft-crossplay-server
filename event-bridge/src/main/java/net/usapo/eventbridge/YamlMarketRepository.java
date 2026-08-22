@@ -19,6 +19,7 @@ import org.bukkit.inventory.ItemStack;
 final class YamlMarketRepository implements MarketRepository {
     private final File file;
     private final Map<Long, MarketListing> listings = new LinkedHashMap<>();
+    private final Map<UUID, MarketClaim> claims = new LinkedHashMap<>();
     private long nextId = 1;
 
     YamlMarketRepository(File file) throws IOException {
@@ -91,6 +92,132 @@ final class YamlMarketRepository implements MarketRepository {
                 .filter(listing -> listing.status() == MarketListing.Status.ACTIVE)
                 .sorted(Comparator.comparingLong(MarketListing::id).reversed())
                 .toList();
+    }
+
+    @Override
+    public synchronized MarketMailboxReturn returnToMailbox(
+            long listingId, UUID requestId, UUID sellerId) throws IOException {
+        MarketListing current = requireListing(listingId);
+        MarketClaim existingClaim = claims.get(requestId);
+        if (existingClaim != null) {
+            if (current.status() != MarketListing.Status.CANCELLED
+                    || !requestId.equals(current.transferId())
+                    || !sellerId.equals(current.recipientId())
+                    || existingClaim.listingId() != listingId
+                    || !existingClaim.ownerId().equals(sellerId)
+                    || !existingClaim.item().equals(current.item())) {
+                throw new IllegalStateException("market mailbox return conflict");
+            }
+            return new MarketMailboxReturn(current, true);
+        }
+        if (current.status() == MarketListing.Status.CANCELLED
+                && requestId.equals(current.transferId())
+                && sellerId.equals(current.recipientId())) {
+            // 旧バージョンのオンライン返却が完了し、ログだけ再処理された場合。
+            return new MarketMailboxReturn(current, true);
+        }
+        if (current.status() != MarketListing.Status.ACTIVE
+                || !current.sellerId().equals(sellerId)) {
+            throw new IllegalStateException("listing cannot be returned to mailbox");
+        }
+        MarketListing changed = new MarketListing(
+                current.id(),
+                current.eventId(),
+                current.sellerId(),
+                current.sellerName(),
+                current.priceXp(),
+                current.item(),
+                MarketListing.Status.CANCELLED,
+                requestId,
+                sellerId);
+        MarketClaim claim = new MarketClaim(
+                requestId,
+                current.id(),
+                sellerId,
+                current.item(),
+                MarketClaim.Status.PENDING,
+                null);
+        listings.put(changed.id(), changed);
+        claims.put(claim.id(), claim);
+        try {
+            save();
+        } catch (IOException error) {
+            listings.put(current.id(), current);
+            claims.remove(claim.id());
+            throw error;
+        }
+        return new MarketMailboxReturn(changed, false);
+    }
+
+    @Override
+    public synchronized List<MarketClaim> pendingClaims(UUID ownerId) {
+        return claims.values().stream()
+                .filter(claim -> claim.ownerId().equals(ownerId)
+                        && claim.status() != MarketClaim.Status.DELIVERED)
+                .toList();
+    }
+
+    @Override
+    public synchronized MarketClaim prepareClaim(
+            UUID claimId, UUID ownerId, UUID transferId) throws IOException {
+        MarketClaim current = requireClaim(claimId, ownerId);
+        if (current.status() == MarketClaim.Status.DELIVERING
+                && transferId.equals(current.transferId())) {
+            return current;
+        }
+        if (current.status() != MarketClaim.Status.PENDING) {
+            throw new IllegalStateException("market claim is not pending");
+        }
+        MarketClaim changed = new MarketClaim(
+                current.id(),
+                current.listingId(),
+                current.ownerId(),
+                current.item(),
+                MarketClaim.Status.DELIVERING,
+                transferId);
+        replaceClaimAndSave(current, changed);
+        return changed;
+    }
+
+    @Override
+    public synchronized MarketClaim completeClaim(
+            UUID claimId, UUID ownerId, UUID transferId) throws IOException {
+        MarketClaim current = requireClaim(claimId, ownerId);
+        if (current.status() == MarketClaim.Status.DELIVERED
+                && transferId.equals(current.transferId())) {
+            return current;
+        }
+        if (current.status() != MarketClaim.Status.DELIVERING
+                || !transferId.equals(current.transferId())) {
+            throw new IllegalStateException("market claim transfer does not match");
+        }
+        MarketClaim changed = new MarketClaim(
+                current.id(),
+                current.listingId(),
+                current.ownerId(),
+                current.item(),
+                MarketClaim.Status.DELIVERED,
+                transferId);
+        replaceClaimAndSave(current, changed);
+        return changed;
+    }
+
+    @Override
+    public synchronized void abortClaim(UUID claimId, UUID ownerId, UUID transferId)
+            throws IOException {
+        MarketClaim current = requireClaim(claimId, ownerId);
+        if (current.status() != MarketClaim.Status.DELIVERING
+                || !transferId.equals(current.transferId())) {
+            return;
+        }
+        MarketClaim pending = new MarketClaim(
+                current.id(),
+                current.listingId(),
+                current.ownerId(),
+                current.item(),
+                MarketClaim.Status.PENDING,
+                null);
+        replaceClaimAndSave(current, pending);
     }
 
     @Override
@@ -179,12 +306,30 @@ final class YamlMarketRepository implements MarketRepository {
         return listing;
     }
 
+    private MarketClaim requireClaim(UUID claimId, UUID ownerId) {
+        MarketClaim claim = claims.get(claimId);
+        if (claim == null || !claim.ownerId().equals(ownerId)) {
+            throw new IllegalArgumentException("unknown market claim");
+        }
+        return claim;
+    }
+
     private void replaceAndSave(MarketListing previous, MarketListing changed) throws IOException {
         listings.put(changed.id(), changed);
         try {
             save();
         } catch (IOException error) {
             listings.put(previous.id(), previous);
+            throw error;
+        }
+    }
+
+    private void replaceClaimAndSave(MarketClaim previous, MarketClaim changed) throws IOException {
+        claims.put(changed.id(), changed);
+        try {
+            save();
+        } catch (IOException error) {
+            claims.put(previous.id(), previous);
             throw error;
         }
     }
@@ -225,6 +370,30 @@ final class YamlMarketRepository implements MarketRepository {
                 throw new IOException("invalid market listing " + key, error);
             }
         }
+        ConfigurationSection claimRoot = yaml.getConfigurationSection("claims");
+        if (claimRoot == null) {
+            return;
+        }
+        for (String key : claimRoot.getKeys(false)) {
+            try {
+                String path = "claims." + key + ".";
+                ItemStack item = yaml.getItemStack(path + "item");
+                if (item == null || item.getType().isAir()) {
+                    throw new IllegalArgumentException("missing item");
+                }
+                String transfer = yaml.getString(path + "transfer-id");
+                MarketClaim claim = new MarketClaim(
+                        UUID.fromString(key),
+                        yaml.getLong(path + "listing-id"),
+                        UUID.fromString(yaml.getString(path + "owner-id", "")),
+                        item,
+                        MarketClaim.Status.valueOf(yaml.getString(path + "status", "PENDING")),
+                        transfer == null ? null : UUID.fromString(transfer));
+                claims.put(claim.id(), claim);
+            } catch (IllegalArgumentException error) {
+                throw new IOException("invalid market claim " + key, error);
+            }
+        }
     }
 
     private void save() throws IOException {
@@ -244,6 +413,14 @@ final class YamlMarketRepository implements MarketRepository {
             yaml.set(path + "status", listing.status().name());
             yaml.set(path + "transfer-id", optionalUuid(listing.transferId()));
             yaml.set(path + "recipient-id", optionalUuid(listing.recipientId()));
+        }
+        for (MarketClaim claim : new ArrayList<>(claims.values())) {
+            String path = "claims." + claim.id() + ".";
+            yaml.set(path + "listing-id", claim.listingId());
+            yaml.set(path + "owner-id", claim.ownerId().toString());
+            yaml.set(path + "item", claim.item());
+            yaml.set(path + "status", claim.status().name());
+            yaml.set(path + "transfer-id", optionalUuid(claim.transferId()));
         }
         File temporary = new File(file.getParentFile(), "." + file.getName() + ".tmp");
         yaml.save(temporary);

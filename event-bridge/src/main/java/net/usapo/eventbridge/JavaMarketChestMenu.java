@@ -42,6 +42,11 @@ final class JavaMarketChestMenu implements JavaMarketMenuGateway {
                 List.of("出品内容の確認や取り消しができます。"),
                 () -> openMine(player, actionHandler, 1)));
         entries.put(16, JavaChestMenus.terminalAction(
+                Material.BARREL,
+                "返却受取箱（" + repository.pendingClaims(player.getUniqueId()).size() + "件）",
+                List.of("退会・連携解除時に取り消された出品を受け取ります。"),
+                () -> actionHandler.accept(action(MarketFormAction.Kind.CLAIM, 0, 0))));
+        entries.put(20, JavaChestMenus.terminalAction(
                 Material.EXPERIENCE_BOTTLE,
                 "サーバーXP残高",
                 List.of("残高は自分だけに表示されます。"),

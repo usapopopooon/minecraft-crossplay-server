@@ -110,6 +110,34 @@ final class YamlQuestRepositoryTest {
                 .getFirst()
                 .transitionKind());
         assertClaim(repository.pendingClaims(OWNER), "diamond", 3);
+        assertEquals(
+                "依頼者の参加登録が解除されたため、クエスト #1 は終了し、受注も解除されました。",
+                repository.pendingNotices(WORKER).getFirst().message());
+    }
+
+    @Test
+    void releasedAssignmentReopensAndNotifiesTheOwner() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "abandoned.yml"));
+        QuestListing created = repository.create(
+                EVENT,
+                OWNER,
+                "Owner",
+                "minecraft:stone",
+                "石",
+                32,
+                24,
+                item("diamond", 3),
+                1_000);
+        repository.accept(created.id(), ACCEPT, WORKER, "Worker", 2_000);
+        UUID abandoned = UUID.fromString("99999999-9999-4999-8999-999999999999");
+
+        QuestTransition result = repository.abandon(created.id(), abandoned, WORKER, 3_000);
+
+        assertEquals(QuestListing.Status.OPEN, result.quest().status());
+        assertEquals(
+                "クエスト #1 は受注解除により再募集しました。",
+                repository.pendingNotices(OWNER).getFirst().message());
     }
 
     @Test

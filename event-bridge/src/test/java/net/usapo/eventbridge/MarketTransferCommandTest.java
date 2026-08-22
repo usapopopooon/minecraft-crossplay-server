@@ -91,6 +91,51 @@ final class MarketTransferCommandTest {
         assertTrue(responses.getLast().contains("|completed|sold|duplicate"));
     }
 
+    @Test
+    void mailboxReturnCancelsOfflineListingIdempotently() {
+        MemoryRepository repository = new MemoryRepository(item());
+        List<String> responses = new ArrayList<>();
+        MarketTransferCommand command = new MarketTransferCommand(
+                ignored -> null,
+                repository,
+                historyKey());
+        CommandSender sender = sender(responses);
+        String[] arguments = {
+            "market-mailbox-return", "17", SELLER_ID.toString(), TRANSFER_ID.toString()
+        };
+
+        assertTrue(command.onCommand(sender, null, "usapo-event-bridge", arguments));
+        assertTrue(command.onCommand(sender, null, "usapo-event-bridge", arguments));
+
+        assertEquals(MarketListing.Status.CANCELLED, repository.listing.status());
+        assertTrue(responses.getFirst().contains("|completed|cancelled|new"));
+        assertTrue(responses.getLast().contains("|completed|cancelled|duplicate"));
+    }
+
+    @Test
+    void unknownMailboxListingReturnsAParseableUnavailableResult() {
+        MemoryRepository repository = new MemoryRepository(item());
+        List<String> responses = new ArrayList<>();
+        MarketTransferCommand command = new MarketTransferCommand(
+                ignored -> null,
+                repository,
+                historyKey());
+
+        assertTrue(command.onCommand(
+                sender(responses),
+                null,
+                "usapo-event-bridge",
+                new String[] {
+                    "market-mailbox-return",
+                    "99",
+                    SELLER_ID.toString(),
+                    TRANSFER_ID.toString()
+                }));
+
+        assertTrue(responses.getLast().contains(
+                "|" + TRANSFER_ID + "|99|unavailable|unknown|new"));
+    }
+
     private static Player player(
             UUID playerId,
             AtomicInteger additions,
@@ -222,6 +267,49 @@ final class MarketTransferCommandTest {
             return listing.status() == MarketListing.Status.ACTIVE
                     ? List.of(listing)
                     : List.of();
+        }
+
+        @Override
+        public MarketMailboxReturn returnToMailbox(
+                long listingId, UUID requestId, UUID sellerId) {
+            if (listing.id() != listingId) {
+                throw new IllegalArgumentException("unknown market listing");
+            }
+            if (listing.status() == MarketListing.Status.CANCELLED
+                    && requestId.equals(listing.transferId())) {
+                return new MarketMailboxReturn(listing, true);
+            }
+            listing = new MarketListing(
+                    listing.id(),
+                    listing.eventId(),
+                    listing.sellerId(),
+                    listing.sellerName(),
+                    listing.priceXp(),
+                    listing.item(),
+                    MarketListing.Status.CANCELLED,
+                    requestId,
+                    sellerId);
+            return new MarketMailboxReturn(listing, false);
+        }
+
+        @Override
+        public List<MarketClaim> pendingClaims(UUID ownerId) {
+            return List.of();
+        }
+
+        @Override
+        public MarketClaim prepareClaim(UUID claimId, UUID ownerId, UUID transferId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public MarketClaim completeClaim(UUID claimId, UUID ownerId, UUID transferId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void abortClaim(UUID claimId, UUID ownerId, UUID transferId) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

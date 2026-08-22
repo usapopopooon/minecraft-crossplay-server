@@ -79,10 +79,12 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         } catch (IOException error) {
             throw new IllegalStateException("Could not load Minecraft market escrow", error);
         }
+        NamespacedKey marketTransferHistoryKey =
+                new NamespacedKey(this, "market_transfer_history");
         MarketTransferCommand marketTransferCommand = new MarketTransferCommand(
                 playerId -> getServer().getPlayer(playerId),
                 marketRepository,
-                new NamespacedKey(this, "market_transfer_history"));
+                marketTransferHistoryKey);
         QuestRepository questRepository;
         try {
             questRepository = new YamlQuestRepository(new File(getDataFolder(), "quest.yml"));
@@ -160,7 +162,8 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                 marketPublisher,
                 marketForms,
                 new JavaMarketChestMenu(marketRepository, javaChestMenus),
-                new NamespacedKey(this, "pending_market_escrow"));
+                new NamespacedKey(this, "pending_market_escrow"),
+                marketTransferHistoryKey);
         PluginCommand market = Objects.requireNonNull(getCommand("market"));
         market.setExecutor(marketCommand);
         market.setTabCompleter(marketCommand);

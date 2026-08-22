@@ -43,10 +43,10 @@ final class MarketTransferCommand implements CommandExecutor {
             @NotNull String[] arguments) {
         if (arguments.length != 4
                 || (!arguments[0].equals("market-deliver")
-                        && !arguments[0].equals("market-return"))) {
+                        && !arguments[0].equals("market-return")
+                        && !arguments[0].equals("market-mailbox-return"))) {
             return false;
         }
-        boolean returning = arguments[0].equals("market-return");
         try {
             long listingId = Long.parseLong(arguments[1]);
             UUID recipientId = UUID.fromString(arguments[2]);
@@ -54,12 +54,36 @@ final class MarketTransferCommand implements CommandExecutor {
             if (listingId <= 0) {
                 throw new IllegalArgumentException("invalid listing id");
             }
+            if (arguments[0].equals("market-mailbox-return")) {
+                returnToMailbox(sender, listingId, recipientId, transferId);
+                return true;
+            }
+            boolean returning = arguments[0].equals("market-return");
             transfer(sender, listingId, recipientId, transferId, returning);
         } catch (IllegalArgumentException error) {
             sender.sendMessage(RESULT_PREFIX + arguments[3]
                     + "|0|invalid_request|unknown|new");
         }
         return true;
+    }
+
+    private void returnToMailbox(
+            CommandSender sender, long listingId, UUID sellerId, UUID requestId) {
+        try {
+            MarketMailboxReturn returned =
+                    repository.returnToMailbox(listingId, requestId, sellerId);
+            result(
+                    sender,
+                    requestId,
+                    listingId,
+                    "completed",
+                    statusName(returned.listing()),
+                    returned.duplicate());
+        } catch (IOException error) {
+            result(sender, requestId, listingId, "storage_error", currentStatus(listingId), false);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            result(sender, requestId, listingId, "unavailable", currentStatus(listingId), false);
+        }
     }
 
     private void transfer(
@@ -203,6 +227,12 @@ final class MarketTransferCommand implements CommandExecutor {
 
     private static String statusName(MarketListing listing) {
         return listing.status().name().toLowerCase();
+    }
+
+    private String currentStatus(long listingId) {
+        return repository.find(listingId)
+                .map(MarketTransferCommand::statusName)
+                .orElse("unknown");
     }
 
     private static String terminalName(MarketListing.Status terminal) {

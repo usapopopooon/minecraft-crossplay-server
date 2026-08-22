@@ -98,13 +98,19 @@ items and provides product details, purchase confirmation, pagination,
 own-listing cancellation, and a button-only number pad for the listing price.
 If neither UI can be shown, players can still use
 `/market list [page]`, `/market sell <total-price>`, `/market buy <listing>`,
-`/market mine`, `/market cancel <listing>`, and `/market balance`. Listing moves
+`/market mine`, `/market cancel <listing>`, `/market claim`, and `/market balance`. Listing moves
 the entire main-hand stack, including its item metadata, into persistent escrow.
 Prices and balances are displayed explicitly as server XP, distinct from
 Minecraft experience. A completed purchase charges the displayed server XP
 from the buyer and credits it to the seller. Delivery and return require the
 recipient to be online with enough inventory space; retry IDs stored in player
 data prevent a lost RCON response from duplicating the item.
+When mc-bot revokes a managed account, it can atomically cancel each active
+listing into a persistent UUID-scoped market return mailbox without requiring
+the seller to be online. Java and Bedrock menus show that mailbox, `/market claim`
+delivers every item that fits, and join notices identify returns still waiting.
+Listing cancellation and mailbox creation are one YAML save; claim delivery uses
+persisted transfer history so retries do not duplicate an item.
 Java command output, Bedrock forms, and the listing event sent to mc-bot all
 render the item's effective name through the bundled Minecraft Java 26.2
 Japanese translations. This covers data-dependent vanilla names while
@@ -169,6 +175,10 @@ quest completion and notification therefore resumes the missing work at plugin s
 or during the periodic recovery pass. The internal mc-bot reconciliation command can
 invalidate an unlinked owner's quest even after it was accepted; no submitted item is
 removed in that state, and the escrowed reward returns to the owner's mailbox.
+Account revocation invokes that invalidation for every nonterminal owned quest and
+releases every assignment held by the departing account, allowing it to be
+relisted immediately. The operations are idempotent so mc-bot can keep the
+account removal pending and safely retry after an ambiguous RCON response.
 
 ```text
 Java Edition:    <your-hostname>:25565

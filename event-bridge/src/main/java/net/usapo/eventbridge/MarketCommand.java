@@ -1,8 +1,11 @@
 package net.usapo.eventbridge;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.bukkit.NamespacedKey;
@@ -15,24 +18,33 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
 final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     private static final int PAGE_SIZE = 8;
+    private static final int HISTORY_LIMIT = 100;
 
     private final MarketRepository repository;
     private final MarketRequestSink requests;
     private final BedrockMarketFormGateway forms;
     private final JavaMarketMenuGateway javaMenus;
     private final NamespacedKey pendingEscrowKey;
+    private final NamespacedKey claimHistoryKey;
 
     MarketCommand(
             MarketRepository repository,
             MarketRequestSink requests,
             BedrockMarketFormGateway forms,
             NamespacedKey pendingEscrowKey) {
-        this(repository, requests, forms, (player, handler) -> false, pendingEscrowKey);
+        this(
+                repository,
+                requests,
+                forms,
+                (player, handler) -> false,
+                pendingEscrowKey,
+                pendingEscrowKey);
     }
 
     MarketCommand(
@@ -41,11 +53,22 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             BedrockMarketFormGateway forms,
             JavaMarketMenuGateway javaMenus,
             NamespacedKey pendingEscrowKey) {
+        this(repository, requests, forms, javaMenus, pendingEscrowKey, pendingEscrowKey);
+    }
+
+    MarketCommand(
+            MarketRepository repository,
+            MarketRequestSink requests,
+            BedrockMarketFormGateway forms,
+            JavaMarketMenuGateway javaMenus,
+            NamespacedKey pendingEscrowKey,
+            NamespacedKey claimHistoryKey) {
         this.repository = repository;
         this.requests = requests;
         this.forms = forms;
         this.javaMenus = javaMenus;
         this.pendingEscrowKey = pendingEscrowKey;
+        this.claimHistoryKey = claimHistoryKey;
     }
 
     @Override
@@ -85,6 +108,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
                     .ifPresentOrElse(
                             id -> cancel(player, id),
                             () -> player.sendMessage("出品取消: /market cancel <出品番号>"));
+            case "claim" -> claim(player);
             case "balance" -> requests.publishRequest("balance", 0, 0, player);
             default -> sendUsage(player);
         }
@@ -102,6 +126,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             case SELL -> sell(player, action.priceXp());
             case BUY -> buy(player, action.listingId());
             case CANCEL -> cancel(player, action.listingId());
+            case CLAIM -> claim(player);
             case BALANCE -> requests.publishRequest("balance", 0, 0, player);
             case LIST -> showListings(player, 1);
             case MINE -> showMine(player);
@@ -159,7 +184,12 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        recoverPendingEscrow(event.getPlayer());
+        Player player = event.getPlayer();
+        recoverPendingEscrow(player);
+        int claims = repository.pendingClaims(player.getUniqueId()).size();
+        if (claims > 0) {
+            player.sendMessage("フリマ返却受取箱に " + claims + " 件あります。/market から受け取れます。");
+        }
     }
 
     boolean recoverPendingEscrow(Player player) {
@@ -247,6 +277,131 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         player.sendMessage("出品取消を受け付けました。アイテム返却まで少しお待ちください。");
     }
 
+    private void claim(Player player) {
+        List<MarketClaim> pending = repository.pendingClaims(player.getUniqueId());
+        if (pending.isEmpty()) {
+            player.sendMessage("フリマ返却受取箱は空です。");
+            return;
+        }
+        int delivered = 0;
+        List<String> blocked = new ArrayList<>();
+        for (MarketClaim claim : pending) {
+            ClaimDelivery result = deliverClaim(player, claim);
+            if (result == ClaimDelivery.NO_SPACE) {
+                ItemStack item = claim.item();
+                blocked.add(MarketItems.marketDisplayName(item) + " x" + item.getAmount());
+                continue;
+            }
+            if (result == ClaimDelivery.FAILED) {
+                break;
+            }
+            delivered++;
+        }
+        int remaining = repository.pendingClaims(player.getUniqueId()).size();
+        if (delivered > 0) {
+            player.sendMessage("フリマ返却受取箱から " + delivered + " 件受け取りました。");
+        }
+        if (remaining > 0) {
+            if (!blocked.isEmpty()) {
+                player.sendMessage("空き不足で受け取れなかったもの: " + summarize(blocked));
+            }
+            player.sendMessage("返却受取箱に残り " + remaining + " 件です。空きを作って /market から再度受け取ってください。");
+        }
+    }
+
+    private ClaimDelivery deliverClaim(Player player, MarketClaim claim) {
+        UUID transferId = claim.transferId() == null ? UUID.randomUUID() : claim.transferId();
+        String history = readClaimHistory(player);
+        if (containsTransfer(history, transferId)) {
+            try {
+                player.saveData();
+                repository.completeClaim(claim.id(), player.getUniqueId(), transferId);
+                return ClaimDelivery.DELIVERED;
+            } catch (IOException | RuntimeException error) {
+                player.sendMessage("返却受取状態を保存できませんでした。少し待って再実行してください。");
+                return ClaimDelivery.FAILED;
+            }
+        }
+        PlayerInventory inventory = player.getInventory();
+        ItemStack item = claim.item();
+        if (!MarketItems.canFit(inventory, item)) {
+            return ClaimDelivery.NO_SPACE;
+        }
+        ItemStack[] snapshot = MarketItems.snapshot(inventory);
+        try {
+            repository.prepareClaim(claim.id(), player.getUniqueId(), transferId);
+            Map<Integer, ItemStack> leftover = inventory.addItem(item);
+            if (!leftover.isEmpty()) {
+                inventory.setStorageContents(snapshot);
+                repository.abortClaim(claim.id(), player.getUniqueId(), transferId);
+                return ClaimDelivery.NO_SPACE;
+            }
+            writeClaimHistory(player, history, transferId);
+        } catch (IOException | RuntimeException error) {
+            inventory.setStorageContents(snapshot);
+            restoreClaimHistory(player, history);
+            try {
+                repository.abortClaim(claim.id(), player.getUniqueId(), transferId);
+            } catch (IOException ignored) {
+                // 同じtransfer IDで再試行できる。
+            }
+            player.sendMessage("返却受取処理を保存できませんでした。少し待って再実行してください。");
+            return ClaimDelivery.FAILED;
+        }
+        try {
+            player.saveData();
+        } catch (RuntimeException error) {
+            player.sendMessage("返却受取処理を保存中です。同じ操作を再実行してください。");
+            return ClaimDelivery.FAILED;
+        }
+        try {
+            repository.completeClaim(claim.id(), player.getUniqueId(), transferId);
+            return ClaimDelivery.DELIVERED;
+        } catch (IOException | RuntimeException error) {
+            player.sendMessage("返却受取の確定を再試行します。同じ操作をもう一度実行してください。");
+            return ClaimDelivery.FAILED;
+        }
+    }
+
+    private String readClaimHistory(Player player) {
+        return player.getPersistentDataContainer()
+                .get(claimHistoryKey, PersistentDataType.STRING);
+    }
+
+    private static boolean containsTransfer(String history, UUID transferId) {
+        return history != null
+                && !history.isBlank()
+                && Arrays.asList(history.split("\\n")).contains(transferId.toString());
+    }
+
+    private void writeClaimHistory(Player player, String history, UUID transferId) {
+        List<String> entries = new ArrayList<>();
+        entries.add(transferId.toString());
+        if (history != null && !history.isBlank()) {
+            entries.addAll(Arrays.asList(history.split("\\n")));
+        }
+        if (entries.size() > HISTORY_LIMIT) {
+            entries = entries.subList(0, HISTORY_LIMIT);
+        }
+        player.getPersistentDataContainer()
+                .set(claimHistoryKey, PersistentDataType.STRING, String.join("\n", entries));
+    }
+
+    private void restoreClaimHistory(Player player, String history) {
+        if (history == null) {
+            player.getPersistentDataContainer().remove(claimHistoryKey);
+        } else {
+            player.getPersistentDataContainer()
+                    .set(claimHistoryKey, PersistentDataType.STRING, history);
+        }
+    }
+
+    private static String summarize(List<String> labels) {
+        int shown = Math.min(3, labels.size());
+        String summary = String.join("、", labels.subList(0, shown));
+        return labels.size() > shown ? summary + "、ほか" + (labels.size() - shown) + "件" : summary;
+    }
+
     private void showListings(Player player, int page) {
         List<MarketListing> active = repository.activeListings();
         if (active.isEmpty()) {
@@ -277,6 +432,10 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         mine.forEach(listing -> player.sendMessage("#" + listing.id() + " "
                 + listing.label() + " / " + listing.priceXp() + " サーバーXP"));
         player.sendMessage("取消: /market cancel <出品番号>");
+        int claims = repository.pendingClaims(player.getUniqueId()).size();
+        if (claims > 0) {
+            player.sendMessage("返却受取箱: " + claims + "件 /market claim");
+        }
     }
 
     private static Optional<Integer> parsePositiveInteger(String[] arguments, int index) {
@@ -314,6 +473,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         player.sendMessage("購入: /market buy <出品番号>");
         player.sendMessage("自分の出品: /market mine");
         player.sendMessage("取消: /market cancel <出品番号>");
+        player.sendMessage("返却受取箱: /market claim");
         player.sendMessage("サーバーXP残高: /market balance");
     }
 
@@ -325,10 +485,16 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             @NotNull String[] arguments) {
         if (arguments.length == 1) {
             String prefix = arguments[0].toLowerCase(Locale.ROOT);
-            return List.of("list", "sell", "buy", "mine", "cancel", "balance").stream()
+            return List.of("list", "sell", "buy", "mine", "cancel", "claim", "balance").stream()
                     .filter(option -> option.startsWith(prefix))
                     .toList();
         }
         return List.of();
+    }
+
+    private enum ClaimDelivery {
+        DELIVERED,
+        NO_SPACE,
+        FAILED
     }
 }

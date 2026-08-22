@@ -5,6 +5,7 @@ record MarketFormAction(Kind kind, long listingId, int priceXp) {
         SELL,
         BUY,
         CANCEL,
+        CLAIM,
         BALANCE,
         LIST,
         MINE
