@@ -76,14 +76,19 @@ final class MarketItems {
         if (!enchantedBookName.equals(effectiveName)) {
             return enchantedBookName;
         }
-        if (!isGeneratedEnchantmentDescription(item, effectiveName)) {
+        if (isGeneratedEnchantmentDescription(item, effectiveName)) {
+            String materialName =
+                    translate(Component.translatable(item.getType().translationKey()));
+            if (materialName.isEmpty() || materialName.equals(effectiveName)) {
+                return effectiveName;
+            }
+            return effectiveName + "（" + materialName + "）";
+        }
+        String summary = enchantmentSummary(item.getEnchantments(), Integer.MAX_VALUE);
+        if (summary.isEmpty()) {
             return effectiveName;
         }
-        String materialName = translate(Component.translatable(item.getType().translationKey()));
-        if (materialName.isEmpty() || materialName.equals(effectiveName)) {
-            return effectiveName;
-        }
-        return effectiveName + "（" + materialName + "）";
+        return effectiveName + "（" + summary + "）";
     }
 
     private static String enchantedBookDisplayName(
@@ -91,26 +96,31 @@ final class MarketItems {
         if (!(item.getItemMeta() instanceof EnchantmentStorageMeta meta)) {
             return effectiveName;
         }
-        Map<?, Integer> storedEnchantments = meta.getStoredEnchants();
-        List<StoredEnchantment> enchantments = storedEnchantments.entrySet().stream()
+        String summary = enchantmentSummary(meta.getStoredEnchants(), storedEnchantmentLimit);
+        return summary.isEmpty() ? effectiveName : effectiveName + "（" + summary + "）";
+    }
+
+    private static String enchantmentSummary(
+            Map<?, Integer> enchantmentLevels, int displayLimit) {
+        List<StoredEnchantment> enchantments = enchantmentLevels.entrySet().stream()
                 .filter(entry -> entry.getKey() instanceof Keyed)
                 .map(entry -> new StoredEnchantment(
                         ((Keyed) entry.getKey()).getKey(), entry.getValue()))
                 .sorted((left, right) -> left.key().toString().compareTo(right.key().toString()))
                 .toList();
         if (enchantments.isEmpty()) {
-            return effectiveName;
+            return "";
         }
         String summary = enchantments.stream()
-                .limit(storedEnchantmentLimit)
+                .limit(displayLimit)
                 .map(MarketItems::storedEnchantmentName)
                 .collect(java.util.stream.Collectors.joining(" / "));
-        if (enchantments.size() > storedEnchantmentLimit) {
+        if (enchantments.size() > displayLimit) {
             summary += " / ほか"
-                    + (enchantments.size() - storedEnchantmentLimit)
+                    + (enchantments.size() - displayLimit)
                     + "種類";
         }
-        return effectiveName + "（" + summary + "）";
+        return summary;
     }
 
     private static String storedEnchantmentName(StoredEnchantment enchantment) {

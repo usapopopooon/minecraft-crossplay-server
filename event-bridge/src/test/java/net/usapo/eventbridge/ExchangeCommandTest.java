@@ -32,25 +32,12 @@ final class ExchangeCommandTest {
                         new ExchangeSelection(
                                 ExchangeKind.RESOURCE,
                                 "minecraft:gunpowder",
-                                8,
-                                100,
-                                8,
-                                "サーバーXP 100 → 火薬 x8"),
-                        new ExchangeSelection(
-                                ExchangeKind.RESOURCE,
-                                "minecraft:gunpowder",
-                                32,
-                                360,
-                                32,
-                                "サーバーXP 360 → 火薬 x32"),
-                        new ExchangeSelection(
-                                ExchangeKind.RESOURCE,
-                                "minecraft:gunpowder",
+                                "火薬",
                                 64,
                                 150,
                                 64,
                                 "サーバーXP 150 → 火薬 x64")),
-                ExchangeCatalog.RESOURCES.stream()
+                new ExchangeCatalog().resources().stream()
                         .filter(selection -> selection.target().equals("minecraft:gunpowder"))
                         .toList());
     }
@@ -59,15 +46,15 @@ final class ExchangeCommandTest {
     void resourceGroupsKeepEveryOfferInAReadableItemFirstOrder() {
         assertEquals(
                 List.of("エメラルド", "火薬", "ダイヤモンド"),
-                ExchangeCatalog.RESOURCE_GROUPS.stream()
+                new ExchangeCatalog().resourceGroups().stream()
                         .map(ExchangeCatalog.ResourceGroup::itemName)
                         .toList());
         assertEquals(
-                ExchangeCatalog.RESOURCES,
-                ExchangeCatalog.RESOURCE_GROUPS.stream()
+                new ExchangeCatalog().resources(),
+                new ExchangeCatalog().resourceGroups().stream()
                         .flatMap(group -> group.options().stream())
                         .toList());
-        assertTrue(ExchangeCatalog.RESOURCE_GROUPS.stream()
+        assertTrue(new ExchangeCatalog().resourceGroups().stream()
                 .allMatch(group -> group.options().stream()
                         .allMatch(selection -> selection.target().equals(group.target()))));
     }
@@ -92,6 +79,8 @@ final class ExchangeCommandTest {
         now.addAndGet(2_000);
         invoke(command, player, "emerald-diamond", "64");
         now.addAndGet(2_000);
+        invoke(command, player, "diamond-emerald", "4");
+        now.addAndGet(2_000);
         invoke(command, player, "balance");
 
         assertEquals(
@@ -99,6 +88,7 @@ final class ExchangeCommandTest {
                         new ExchangeSelection(
                                 ExchangeKind.XP,
                                 "minecraft:experience",
+                                "Minecraft XP",
                                 500,
                                 100,
                                 500,
@@ -106,20 +96,23 @@ final class ExchangeCommandTest {
                         new ExchangeSelection(
                                 ExchangeKind.RESOURCE,
                                 "minecraft:diamond",
+                                "ダイヤモンド",
                                 3,
-                                2_160,
+                                750,
                                 3,
-                                "サーバーXP 2,160 → ダイヤモンド x3"),
+                                "サーバーXP 750 → ダイヤモンド x3"),
                         new ExchangeSelection(
                                 ExchangeKind.RESOURCE,
                                 "minecraft:emerald",
+                                "エメラルド",
                                 16,
-                                360,
+                                250,
                                 16,
-                                "サーバーXP 360 → エメラルド x16"),
+                                "サーバーXP 250 → エメラルド x16"),
                         new ExchangeSelection(
                                 ExchangeKind.RESOURCE,
                                 "minecraft:gunpowder",
+                                "火薬",
                                 64,
                                 150,
                                 64,
@@ -127,10 +120,19 @@ final class ExchangeCommandTest {
                         new ExchangeSelection(
                                 ExchangeKind.EMERALD_DIAMOND,
                                 "minecraft:diamond",
+                                "ダイヤモンド",
                                 64,
                                 0,
                                 2,
                                 "エメラルド x64 → ダイヤモンド x2"),
+                        new ExchangeSelection(
+                                ExchangeKind.DIAMOND_EMERALD,
+                                "minecraft:emerald",
+                                "エメラルド",
+                                4,
+                                0,
+                                64,
+                                "ダイヤモンド x4 → エメラルド x64"),
                         ExchangeSelection.balance()),
                 requests);
     }
@@ -230,19 +232,57 @@ final class ExchangeCommandTest {
         assertTrue(requests.isEmpty());
         assertTrue(messages.getFirst().contains("プレイヤー"));
         assertEquals(
-                List.of("1", "3", "8", "16", "32", "64"),
+                List.of("1", "3", "8", "16"),
                 command.onTabComplete(
                         player(new ArrayList<>()),
                         null,
                         "exchange",
                         new String[] {"resource", "diamond", ""}));
         assertEquals(
-                List.of("8", "32", "64"),
+                List.of("64"),
                 command.onTabComplete(
                         player(new ArrayList<>()),
                         null,
                         "exchange",
                         new String[] {"resource", "gunpowder", ""}));
+    }
+
+    @Test
+    void directCommandAndTabCompletionUseTheCurrentDynamicCatalog() {
+        List<ExchangeSelection> requests = new ArrayList<>();
+        ExchangeCatalog catalog = new ExchangeCatalog(
+                6,
+                List.of(
+                        ExchangeCatalog.resource("minecraft:copper_ingot", "銅インゴット", 4, 75),
+                        ExchangeCatalog.resource("minecraft:copper_ingot", "銅インゴット", 16, 250)));
+        ExchangeCommand command = new ExchangeCommand(
+                sink(requests),
+                (player, handler) -> false,
+                (player, handler) -> false,
+                catalog,
+                new MaterialBuybackPendingRegistry(),
+                () -> 10_000);
+        Player player = player(new ArrayList<>());
+
+        invoke(command, player, "resource", "copper_ingot", "16");
+
+        assertEquals(
+                List.of(catalog.findResource("copper_ingot", 16).orElseThrow()),
+                requests);
+        assertEquals(
+                List.of("copper_ingot"),
+                command.onTabComplete(
+                        player,
+                        null,
+                        "exchange",
+                        new String[] {"resource", "c"}));
+        assertEquals(
+                List.of("4", "16"),
+                command.onTabComplete(
+                        player,
+                        null,
+                        "exchange",
+                        new String[] {"resource", "copper_ingot", ""}));
     }
 
     @Test
@@ -274,7 +314,7 @@ final class ExchangeCommandTest {
     }
 
     @Test
-    void buybackAllRejectsGuaranteedLimitOverrunAndMaxUsesTheSafeSingleTradeMaximum() {
+    void buybackAllUsesEveryPlainStackWhenItFitsTheRaisedDailyLimit() {
         List<ExchangeSelection> requests = new ArrayList<>();
         ExchangeCommand command = new ExchangeCommand(
                 sink(requests),
@@ -283,14 +323,31 @@ final class ExchangeCommandTest {
         Player player = playerWithPlainInventory(Material.SANDSTONE, 36);
 
         invoke(command, player, "buyback", "all");
+
+        assertEquals(
+                List.of(MaterialBuybackCatalog.selection(
+                        MaterialBuybackCatalog.find(Material.SANDSTONE).orElseThrow(), 2_304)),
+                requests);
+    }
+
+    @Test
+    void emeraldBuybackRejectsEightStacksBeforePublishingAndMaxSelectsSix() {
+        List<ExchangeSelection> requests = new ArrayList<>();
+        ExchangeCommand command = new ExchangeCommand(
+                sink(requests),
+                (player, handler) -> false,
+                () -> 10_000);
+        Player player = playerWithPlainInventory(Material.EMERALD, 8);
+
+        invoke(command, player, "buyback", "8");
         invoke(command, player, "buyback", "max");
 
         assertEquals(
                 List.of(MaterialBuybackCatalog.selection(
-                        MaterialBuybackCatalog.find(Material.SANDSTONE).orElseThrow(), 1_920)),
+                        MaterialBuybackCatalog.EMERALD_RATE, 384)),
                 requests);
         org.mockito.Mockito.verify(player)
-                .sendMessage(org.mockito.ArgumentMatchers.contains("1日の買取上限"));
+                .sendMessage(org.mockito.ArgumentMatchers.contains("1日の売却上限"));
     }
 
     @Test
@@ -329,7 +386,7 @@ final class ExchangeCommandTest {
         assertEquals(List.of(buyback, buyback), requests);
         assertEquals(
                 2,
-                messages.stream().filter(message -> message.contains("前の資材買取を処理中"))
+                messages.stream().filter(message -> message.contains("前の資源売却を処理中"))
                         .count());
     }
 

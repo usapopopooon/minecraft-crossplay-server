@@ -22,7 +22,23 @@ final class QuestItems {
         return isSimpleStack(item) || isEnchantedBook(item);
     }
 
+    static boolean isSupportedAdminItem(ItemStack item) {
+        return item != null
+                && !item.getType().isAir()
+                && item.getType().isItem()
+                && item.getAmount() > 0
+                && !item.hasItemMeta();
+    }
+
     static boolean matchesRequested(QuestListing quest, ItemStack item) {
+        if (QuestIssuer.isSystem(quest)) {
+            ItemStack requestedItem = quest.requestedItem();
+            return requestedItem != null
+                    && isSupportedAdminItem(item)
+                    && quest.requestedItemId().equals(item.getType().getKey().toString())
+                    && item.getAmount() >= quest.requestedCount()
+                    && requestedItem.isSimilar(item);
+        }
         if (!isSupportedRequest(item)
                 || !quest.requestedItemId().equals(item.getType().getKey().toString())
                 || item.getAmount() < quest.requestedCount()) {

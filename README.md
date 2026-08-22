@@ -22,7 +22,9 @@ per orb. The companion `mc-bot` consumes those events without
 continuously polling scoreboards or experience over RCON. Active voice bonus
 experience is applied inside the Paper event, so it does not issue an RCON
 command per gain. The plugin runs only on the server; clients do not install
-anything.
+anything. Placing any log or Nether stem that qualifies for the woodcutting
+combo publishes a reset before that placed block can extend the same player's
+combo when broken again.
 
 All event-bridge bonuses can be disabled without removing the plugin by setting
 `USAPO_BONUSES_ENABLED=false`. This stops the fishing, woodcutting, mining,
@@ -31,9 +33,10 @@ whitelist, and shop functions available. The Compose default is `true`; use
 `false` only for temporary performance diagnosis.
 
 The resource shop can atomically exchange emeralds from an online linked
-player's inventory for diamonds at a fixed rate of 32:1 (32/64 emeralds for
-1/2 diamonds). The plugin verifies both the input and output inventory before
-changing either, rejects a full output inventory without consuming emeralds,
+player's inventory for diamonds at 32:1 (32/64 emeralds for 1/2 diamonds),
+and diamonds back to emeralds at 1:16 (1/4 diamonds for 16/64 emeralds).
+The plugin verifies both the input and output inventory before changing either,
+rejects a full output inventory without consuming the source item,
 and stores recent request UUIDs in player data so an RCON response retry cannot
 repeat an exchange. Successful exchanges are announced in Minecraft and
 written as a UUID-based structured audit event for mc-bot's Discord log.
@@ -41,22 +44,33 @@ written as a UUID-based structured audit event for mc-bot's Discord log.
 Linked players can open the shared exchange menu with `/exchange`. Java clients
 receive a chest menu, while Floodgate/Bedrock clients receive a touch-friendly
 form. Both include a confirmation screen for server XP to Minecraft XP, server
-XP to resources, held emeralds to diamonds, ordinary material buyback, and a
-private XP balance check. The material buyback accepts full stacks of dirt,
-sand, sandstone, deepslate, cobbled deepslate, and tuff. It ignores named or
-metadata-bearing items and awards at most 1,500 server XP per player per JST
+XP to resources, diamond/emerald conversion, resource buyback, and a private XP
+balance check. Resource buyback accepts full stacks of emeralds (500 server XP
+per stack), dirt, sand, sandstone, deepslate, cobbled deepslate, and tuff at
+their configured fixed rates. It ignores named or
+metadata-bearing items and awards at most 3,000 server XP per player per JST
 day, resetting at 00:00 JST. The completion message includes the updated server
 XP balance and the remaining daily buyback allowance. Clients where a menu
 cannot be shown can use `/exchange xp <50|250|500|5000>`,
-`/exchange resource <diamond|emerald|gunpowder> <count>`,
+`/exchange resource <resource-id> <count>` (with current values offered by tab completion),
 `/exchange emerald-diamond <32|64>`,
-`/exchange buyback <1|2|4|8|16|max|all>` while holding the material in the main
+`/exchange diamond-emerald <1|4>`,
+`/exchange buyback <1|2|4|8|16|max|all>` while holding the item in the main
 hand, and `/exchange balance`. The request carries
 the exact displayed cost, but mc-bot checks it again against level-bot's current
 shop before spending XP. Price changes are rejected and the player is asked to
 open the menu again. Results are sent privately to the requesting player; the
 existing completed-exchange announcements remain unchanged. No client add-on
 is required.
+
+The server-XP resource catalog is synchronized as one versioned snapshot from
+mc-bot over the internal RCON command. The plugin validates every item against
+Paper's material registry, persists the snapshot atomically in
+`plugins/UsapoEventBridge/resource-catalog.yml`, and then swaps the in-memory
+catalog shared by Java menus, Floodgate forms, and direct commands. A stale,
+conflicting, malformed, or unpersistable snapshot leaves the last valid catalog
+active. Once this plugin version has been installed with one planned restart,
+later catalog and price changes do not require a Minecraft restart.
 
 Linked players can start the shared XP item gacha from inside the game with
 `/gacha`. Floodgate/Bedrock players receive a touch-friendly selection form and
@@ -98,7 +112,9 @@ preserving custom item names. When that effective name differs from the item's
 underlying type, recognized enchantment-description names append the translated
 type in parentheses, for example
 `効率Ⅴ耐久力Ⅲ修繕付きの斧（ダイヤモンドの斧）`. Player-assigned base names
-stay intact. Enchanted books append their stored enchantment names and levels;
+stay intact. Ordinary enchanted equipment, including tridents, appends every
+enchantment name and level to both default and player-assigned names. Enchanted
+books append their stored enchantment names and levels;
 books with five or more enchantments show the first four and the number of
 remaining types. Every market surface uses the same name.
 
@@ -116,6 +132,18 @@ Creation is a two-step escrow flow: hold a sample of the requested item and run
 `/quest confirm`. `/quest discard` removes a stale draft without consuming an item.
 Bedrock shows the exact request, deadline, and held reward in a final confirmation
 before escrow. The reward is persisted before the quest is published.
+Server managers can also create system-issued quests from mc-bot's Minecraft
+admin menu without a linked Minecraft account or escrowed inventory. The Discord
+flow searches the Java 26.2 Japanese and English item catalogs or item IDs,
+requires explicit selection when a name is ambiguous, and sends the selected
+request item, reward item, counts, and 1–72 hour fulfillment deadline through
+the internal RCON command.
+Paper validates that both IDs are real item materials and that each count fits
+one stack before atomically creating the quest. The system issuer uses the zero
+UUID and Minecraft name `-`; Discord renders the bot account as the issuer.
+On completion, the submitted item is consumed and only the worker's generated
+reward enters a mailbox. Cancellation or listing expiry never creates a refund
+or a notice for the non-existent system player.
 Java players can browse with `/quest list [page]`; Floodgate/Bedrock players get
 controller- and touch-friendly paginated browse, count and deadline sliders,
 confirmation, own-quest, submit, abandon, cancel, and claim forms from `/quest`.

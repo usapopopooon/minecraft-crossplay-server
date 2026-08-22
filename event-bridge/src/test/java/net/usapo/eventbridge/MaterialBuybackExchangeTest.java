@@ -56,6 +56,11 @@ final class MaterialBuybackExchangeTest {
     @Test
     void catalogUsesTheConfirmedGenerousRates() {
         assertEquals(
+                500,
+                MaterialBuybackCatalog.selection(
+                                MaterialBuybackCatalog.find("minecraft:emerald").orElseThrow(), 64)
+                        .expectedReward());
+        assertEquals(
                 30,
                 MaterialBuybackCatalog.selection(
                                 MaterialBuybackCatalog.find("minecraft:dirt").orElseThrow(), 64)
@@ -78,16 +83,24 @@ final class MaterialBuybackExchangeTest {
                 MaterialBuybackCatalog.find("minecraft:sandstone").orElseThrow();
 
         assertEquals(
-                List.of(64, 128, 256, 512, 1_024, 1_920),
+                List.of(64, 128, 256, 512, 1_024, 2_304),
                 MaterialBuybackCatalog.quantityOptions(sandstone, 2_304).stream()
                         .map(MaterialBuybackCatalog.QuantityOption::itemCount)
                         .toList());
         assertEquals(
-                "1回で選べる最大（30スタック・1920個）",
+                "交換可能分をすべて（36スタック・2304個）",
                 MaterialBuybackCatalog.quantityOptions(sandstone, 2_304)
                         .getLast()
                         .label());
-        assertEquals(1_920, MaterialBuybackCatalog.maximumDailyItemCount(sandstone));
+        assertEquals(3_840, MaterialBuybackCatalog.maximumDailyItemCount(sandstone));
+
+        MaterialBuybackCatalog.Rate emerald = MaterialBuybackCatalog.EMERALD_RATE;
+        assertEquals(384, MaterialBuybackCatalog.maximumDailyItemCount(emerald));
+        assertEquals(
+                List.of(64, 128, 256, 384),
+                MaterialBuybackCatalog.quantityOptions(emerald, 640).stream()
+                        .map(MaterialBuybackCatalog.QuantityOption::itemCount)
+                        .toList());
 
         MaterialBuybackCatalog.Rate dirt =
                 MaterialBuybackCatalog.find("minecraft:dirt").orElseThrow();

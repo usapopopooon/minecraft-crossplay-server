@@ -293,8 +293,11 @@ final class YamlQuestRepository implements QuestRepository {
                 current.openExpiresAtMillis(),
                 0,
                 transitionId);
-        QuestClaim claim = claim(transitionId, "reward", current.id(), ownerId, current.reward());
-        replaceWithClaimsAndSave(current, changed, List.of(claim), "cancelled");
+        List<QuestClaim> claims = QuestIssuer.isSystem(current)
+                ? List.of()
+                : List.of(claim(
+                        transitionId, "reward", current.id(), ownerId, current.reward()));
+        replaceWithClaimsAndSave(current, changed, claims, "cancelled");
         return new QuestTransition(changed, false);
     }
 
@@ -318,8 +321,11 @@ final class YamlQuestRepository implements QuestRepository {
                 current.openExpiresAtMillis(),
                 0,
                 transitionId);
-        QuestClaim claim = claim(transitionId, "reward", current.id(), ownerId, current.reward());
-        replaceWithClaimsAndSave(current, changed, List.of(claim), "invalidated");
+        List<QuestClaim> claims = QuestIssuer.isSystem(current)
+                ? List.of()
+                : List.of(claim(
+                        transitionId, "reward", current.id(), ownerId, current.reward()));
+        replaceWithClaimsAndSave(current, changed, claims, "invalidated");
         return new QuestTransition(changed, false);
     }
 
@@ -350,12 +356,20 @@ final class YamlQuestRepository implements QuestRepository {
                 current.openExpiresAtMillis(),
                 current.acceptedDeadlineMillis(),
                 transitionId);
-        QuestClaim ownerClaim = claim(
-                transitionId, "submission", current.id(), current.ownerId(), submittedItem);
         QuestClaim workerClaim = claim(
                 transitionId, "reward", current.id(), workerId, current.reward());
+        List<QuestClaim> addedClaims = QuestIssuer.isSystem(current)
+                ? List.of(workerClaim)
+                : List.of(
+                        claim(
+                                transitionId,
+                                "submission",
+                                current.id(),
+                                current.ownerId(),
+                                submittedItem),
+                        workerClaim);
         replaceWithClaimsAndSave(
-                current, changed, List.of(ownerClaim, workerClaim), "completed");
+                current, changed, addedClaims, "completed");
         return new QuestTransition(changed, false);
     }
 
@@ -374,17 +388,25 @@ final class YamlQuestRepository implements QuestRepository {
                         current.openExpiresAtMillis(),
                         0,
                         transitionId);
-                QuestClaim reward = claim(
-                        transitionId, "reward", current.id(), current.ownerId(), current.reward());
-                QuestNotice ownerNotice = notice(
-                        transitionId,
-                        "open-expired",
-                        current.id(),
-                        current.ownerId(),
-                        "クエスト #" + current.id()
-                                + " は募集期限切れで終了しました。報酬は受取箱へ戻しました。");
+                List<QuestClaim> claims = QuestIssuer.isSystem(current)
+                        ? List.of()
+                        : List.of(claim(
+                                transitionId,
+                                "reward",
+                                current.id(),
+                                current.ownerId(),
+                                current.reward()));
+                List<QuestNotice> notices = QuestIssuer.isSystem(current)
+                        ? List.of()
+                        : List.of(notice(
+                                transitionId,
+                                "open-expired",
+                                current.id(),
+                                current.ownerId(),
+                                "クエスト #" + current.id()
+                                        + " は募集期限切れで終了しました。報酬は受取箱へ戻しました。"));
                 replaceWithClaimsAndNoticesAndSave(
-                        current, changed, List.of(reward), List.of(ownerNotice), "expired");
+                        current, changed, claims, notices, "expired");
                 transitions.add(new QuestTransition(changed, false));
             } else if (current.status() == QuestListing.Status.ACCEPTED
                     && current.acceptedDeadlineMillis() <= nowMillis) {
@@ -397,12 +419,15 @@ final class YamlQuestRepository implements QuestRepository {
                         nowMillis + OPEN_LIFETIME_MILLIS,
                         0,
                         transitionId);
-                QuestNotice ownerNotice = notice(
-                        transitionId,
-                        "assignment-expired-owner",
-                        current.id(),
-                        current.ownerId(),
-                        "クエスト #" + current.id() + " は受注者の納品期限切れにより再募集しました。");
+                List<QuestNotice> ownerNotices = QuestIssuer.isSystem(current)
+                        ? List.of()
+                        : List.of(notice(
+                                transitionId,
+                                "assignment-expired-owner",
+                                current.id(),
+                                current.ownerId(),
+                                "クエスト #" + current.id()
+                                        + " は受注者の納品期限切れにより再募集しました。"));
                 QuestNotice workerNotice = notice(
                         transitionId,
                         "assignment-expired-worker",
@@ -410,11 +435,13 @@ final class YamlQuestRepository implements QuestRepository {
                         current.workerId(),
                         "クエスト #" + current.id()
                                 + " の納品期限が切れたため、受注を解除して再募集しました。");
+                List<QuestNotice> addedNotices = new ArrayList<>(ownerNotices);
+                addedNotices.add(workerNotice);
                 replaceWithClaimsAndNoticesAndSave(
                         current,
                         changed,
                         List.of(),
-                        List.of(ownerNotice, workerNotice),
+                        addedNotices,
                         "reopened");
                 transitions.add(new QuestTransition(changed, false));
             }

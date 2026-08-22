@@ -125,6 +125,58 @@ final class EmeraldDiamondExchangeTest {
         assertEquals(1, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
     }
 
+    @Test
+    void exchangesDiamondsForEmeraldsAndRetriesWithoutDoubleConversion() {
+        EmeraldDiamondExchange exchange = new EmeraldDiamondExchange();
+        FakeState state = new FakeState(
+                slot(EmeraldDiamondExchange.ItemKind.DIAMOND, 4),
+                EmeraldDiamondExchange.InventorySlot.empty());
+
+        EmeraldDiamondExchange.Result first =
+                exchange.exchangeDiamonds(state, REQUEST_ID, 4);
+        EmeraldDiamondExchange.Result retry =
+                exchange.exchangeDiamonds(state, REQUEST_ID, 4);
+
+        assertEquals(EmeraldDiamondExchange.Status.COMPLETED, first.status());
+        assertEquals(64, first.emeraldCount());
+        assertEquals(4, first.diamondCount());
+        assertFalse(first.duplicate());
+        assertTrue(retry.duplicate());
+        assertEquals(64, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
+        assertEquals(0, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
+        assertEquals(1, state.applyCount);
+    }
+
+    @Test
+    void diamondExchangeIsAtomicWhenEmeraldsCannotFit() {
+        EmeraldDiamondExchange exchange = new EmeraldDiamondExchange();
+        FakeState state = new FakeState(
+                slot(EmeraldDiamondExchange.ItemKind.DIAMOND, 2),
+                slot(EmeraldDiamondExchange.ItemKind.OTHER, 64));
+
+        EmeraldDiamondExchange.Result result =
+                exchange.exchangeDiamonds(state, REQUEST_ID, 1);
+
+        assertEquals(EmeraldDiamondExchange.Status.INVENTORY_FULL, result.status());
+        assertEquals(2, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
+        assertEquals(0, state.count(EmeraldDiamondExchange.ItemKind.EMERALD));
+        assertEquals(0, state.applyCount);
+        assertTrue(state.completed.isEmpty());
+    }
+
+    @Test
+    void diamondExchangeRejectsUnpublishedCounts() {
+        EmeraldDiamondExchange exchange = new EmeraldDiamondExchange();
+        FakeState state = new FakeState(
+                slot(EmeraldDiamondExchange.ItemKind.DIAMOND, 2),
+                EmeraldDiamondExchange.InventorySlot.empty());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> exchange.exchangeDiamonds(state, REQUEST_ID, 2));
+        assertEquals(2, state.count(EmeraldDiamondExchange.ItemKind.DIAMOND));
+    }
+
     private static EmeraldDiamondExchange.InventorySlot slot(
             EmeraldDiamondExchange.ItemKind kind, int amount) {
         return new EmeraldDiamondExchange.InventorySlot(kind, amount);

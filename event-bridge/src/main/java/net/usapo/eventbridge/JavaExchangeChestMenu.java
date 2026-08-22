@@ -22,12 +22,18 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
 final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
-    private static final int MENU_SIZE = 27;
+    private static final int DEFAULT_MENU_SIZE = 27;
 
     private final JavaPlugin plugin;
+    private final ExchangeCatalog catalog;
 
     JavaExchangeChestMenu(JavaPlugin plugin) {
+        this(plugin, new ExchangeCatalog());
+    }
+
+    JavaExchangeChestMenu(JavaPlugin plugin, ExchangeCatalog catalog) {
         this.plugin = plugin;
+        this.catalog = catalog;
     }
 
     @Override
@@ -36,7 +42,7 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
             return true;
         }
         Map<Integer, Runnable> actions = new LinkedHashMap<>();
-        Inventory inventory = create(player, "Minecraft 交換所", actions);
+        Inventory inventory = create(player, "資源交換所", actions);
         add(inventory, actions, 10, icon(
                 Material.EXPERIENCE_BOTTLE,
                 "Minecraft XPへ交換",
@@ -50,29 +56,28 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
                         () -> open(player, selectionHandler)));
         add(inventory, actions, 11, icon(
                 Material.EMERALD,
-                "資源へ交換",
-                "サーバーXPを資源へ交換します。",
+                "XPで資源を購入",
+                "サーバーXPを使って資源を受け取ります。",
                 "資源の種類を選んでから、個数と必要XPを確認できます。"),
                 () -> openResourceGroups(player, selectionHandler));
         add(inventory, actions, 12, icon(
                 Material.DIAMOND,
-                "手持ちエメラルドを交換",
-                "エメラルドをダイヤモンドへ交換します。"),
+                "ダイヤ・エメラルドを両替",
+                "手持ちのダイヤモンドまたはエメラルドを交換します。"),
                 () -> openOptions(
                         player,
-                        "エメラルド交換",
-                        ExchangeCatalog.EMERALD_DIAMOND,
+                        "ダイヤ・エメラルド両替",
+                        ExchangeCatalog.VALUABLE_CONVERSIONS,
                         Material.DIAMOND,
                         selectionHandler,
                         () -> open(player, selectionHandler)));
         add(inventory, actions, 13, icon(
                 Material.CHEST,
-                "資材をサーバーXPへ交換",
-                "通常の対象資材を64個単位で買い取ります。",
-                "1日の買取上限: 1,500 サーバーXP（毎日0時・日本時間に更新）",
-                "本日の残り枠は処理時に確認し、超過時は回収しません。",
-                "獲得後は「資源へ交換」からエメラルドにもできます。"),
-                () -> openBuybackMaterials(player, selectionHandler));
+                "資源をXPで売却",
+                "エメラルドまたは資材を64個単位で買い取ります。",
+                "1日の売却上限: 3,000 サーバーXP（毎日0時・日本時間に更新）",
+                "本日の残り枠は処理時に確認し、超過時は回収しません。"),
+                () -> openBuybackCategories(player, selectionHandler));
         add(inventory, actions, 15, icon(
                 Material.BOOK,
                 "サーバーXP残高を確認",
@@ -86,12 +91,14 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
     private void openResourceGroups(
             Player player, Consumer<ExchangeSelection> selectionHandler) {
         Map<Integer, Runnable> actions = new LinkedHashMap<>();
-        Inventory inventory = create(player, "資源交換", actions);
-        int[] slots = {11, 13, 15};
-        for (int index = 0; index < ExchangeCatalog.RESOURCE_GROUPS.size(); index++) {
-            ExchangeCatalog.ResourceGroup group = ExchangeCatalog.RESOURCE_GROUPS.get(index);
+        List<ExchangeCatalog.ResourceGroup> groups = catalog.resourceGroups();
+        int menuSize = menuSize(groups.size());
+        Inventory inventory = create(player, "XPで資源を購入", actions, menuSize);
+        List<Integer> slots = contentSlots(groups.size(), menuSize);
+        for (int index = 0; index < groups.size(); index++) {
+            ExchangeCatalog.ResourceGroup group = groups.get(index);
             Material material = resourceMaterial(group.target());
-            add(inventory, actions, slots[index], icon(
+            add(inventory, actions, slots.get(index), icon(
                     material,
                     group.itemName(),
                     "個数と必要サーバーXPを選びます。",
@@ -104,6 +111,41 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
                             selectionHandler,
                             () -> openResourceGroups(player, selectionHandler)));
         }
+        add(inventory, actions, backSlot(menuSize), icon(Material.ARROW, "戻る"),
+                () -> open(player, selectionHandler));
+        player.openInventory(inventory);
+    }
+
+    private void openBuybackCategories(
+            Player player, Consumer<ExchangeSelection> selectionHandler) {
+        Map<Integer, Runnable> actions = new LinkedHashMap<>();
+        Inventory inventory = create(player, "資源をXPで売却", actions);
+        MaterialBuybackCatalog.Rate emerald = MaterialBuybackCatalog.EMERALD_RATE;
+        int emeraldCount = MaterialBuybackCatalog.plainCount(player, emerald.material());
+        ItemStack emeraldIcon = icon(
+                Material.EMERALD,
+                "エメラルド",
+                "通常品の所持: " + emeraldCount + "個",
+                "64個 → 500 サーバーXP",
+                emeraldCount >= MaterialBuybackCatalog.STACK_SIZE
+                        ? "数量を選びます。"
+                        : "64個以上あると売却できます。");
+        if (emeraldCount >= MaterialBuybackCatalog.STACK_SIZE) {
+            add(inventory, actions, 11, emeraldIcon,
+                    () -> openBuybackAmounts(
+                            player,
+                            emerald,
+                            selectionHandler,
+                            () -> openBuybackCategories(player, selectionHandler)));
+        } else {
+            inventory.setItem(11, emeraldIcon);
+        }
+        add(inventory, actions, 15, icon(
+                Material.CHEST,
+                "資材",
+                "土・砂・砂岩・深層岩・深層岩の丸石・凝灰岩",
+                "所持している対象資材から選びます。"),
+                () -> openBuybackMaterials(player, selectionHandler));
         add(inventory, actions, 22, icon(Material.ARROW, "戻る"),
                 () -> open(player, selectionHandler));
         player.openInventory(inventory);
@@ -111,12 +153,12 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
 
     private void openBuybackMaterials(
             Player player, Consumer<ExchangeSelection> selectionHandler) {
-        List<MaterialBuybackCatalog.Rate> available = MaterialBuybackCatalog.RATES.stream()
+        List<MaterialBuybackCatalog.Rate> available = MaterialBuybackCatalog.MATERIAL_RATES.stream()
                 .filter(rate -> MaterialBuybackCatalog.plainCount(player, rate.material())
                         >= MaterialBuybackCatalog.STACK_SIZE)
                 .toList();
         Map<Integer, Runnable> actions = new LinkedHashMap<>();
-        Inventory inventory = create(player, "資材買取", actions);
+        Inventory inventory = create(player, "資材", actions);
         if (available.isEmpty()) {
             inventory.setItem(13, icon(
                     Material.BARRIER,
@@ -137,34 +179,39 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
                         "64個単位で交換可能: " + exchangeable + "個",
                         "64個 → " + rate.rewardXpPerStack() + " サーバーXP",
                         "名前や特殊データのない通常アイテムだけが対象です。"),
-                        () -> openBuybackAmounts(player, rate, selectionHandler));
+                        () -> openBuybackAmounts(
+                                player,
+                                rate,
+                                selectionHandler,
+                                () -> openBuybackMaterials(player, selectionHandler)));
             }
         }
         add(inventory, actions, 22, icon(Material.ARROW, "戻る"),
-                () -> open(player, selectionHandler));
+                () -> openBuybackCategories(player, selectionHandler));
         player.openInventory(inventory);
     }
 
     private void openBuybackAmounts(
             Player player,
             MaterialBuybackCatalog.Rate rate,
-            Consumer<ExchangeSelection> selectionHandler) {
+            Consumer<ExchangeSelection> selectionHandler,
+            Runnable backAction) {
         int available = MaterialBuybackCatalog.plainCount(player, rate.material());
         int all = available / MaterialBuybackCatalog.STACK_SIZE
                 * MaterialBuybackCatalog.STACK_SIZE;
         if (all < MaterialBuybackCatalog.STACK_SIZE) {
-            openBuybackMaterials(player, selectionHandler);
+            backAction.run();
             return;
         }
         List<MaterialBuybackCatalog.QuantityOption> options =
                 MaterialBuybackCatalog.quantityOptions(rate, all);
         openBuybackQuantityOptions(
                 player,
-                rate.itemName() + "の買取数",
+                rate.itemName() + "の売却数",
                 rate,
                 options,
                 selectionHandler,
-                () -> openBuybackMaterials(player, selectionHandler));
+                backAction);
     }
 
     private void openBuybackQuantityOptions(
@@ -210,11 +257,12 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
             Consumer<ExchangeSelection> selectionHandler,
             Runnable backAction) {
         Map<Integer, Runnable> actions = new LinkedHashMap<>();
-        Inventory inventory = create(player, title, actions);
-        int firstSlot = options.size() <= 5 ? 11 : 9;
+        int menuSize = menuSize(options.size());
+        Inventory inventory = create(player, title, actions, menuSize);
+        List<Integer> slots = contentSlots(options.size(), menuSize);
         for (int index = 0; index < options.size(); index++) {
             ExchangeSelection selection = options.get(index);
-            int slot = firstSlot + index;
+            int slot = slots.get(index);
             Material optionMaterial = optionMaterial(selection, material);
             add(inventory, actions, slot, icon(optionMaterial, selection.description()),
                     () -> openConfirmation(
@@ -230,7 +278,7 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
                                     selectionHandler,
                                     backAction)));
         }
-        add(inventory, actions, 22, icon(Material.ARROW, "戻る"), backAction);
+        add(inventory, actions, backSlot(menuSize), icon(Material.ARROW, "戻る"), backAction);
         player.openInventory(inventory);
     }
 
@@ -246,13 +294,12 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
                 ? icon(
                         material,
                         selection.description(),
-                        "名前や特殊データのない通常アイテムだけを回収します。",
-                        "獲得後は「資源へ交換」からエメラルドにもできます。")
+                        "名前や特殊データのない通常アイテムだけを回収します。")
                 : icon(material, selection.description()));
         add(inventory, actions, 11, icon(
                 Material.LIME_CONCRETE,
-                "交換する",
-                "表示された内容で交換を申し込みます。"),
+                selection.kind() == ExchangeKind.MATERIAL_BUYBACK ? "売却する" : "交換する",
+                "表示された内容で申し込みます。"),
                 () -> finish(player, selection, selectionHandler));
         add(inventory, actions, 15, icon(Material.ARROW, "戻る"), backAction);
         player.openInventory(inventory);
@@ -267,8 +314,13 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
     }
 
     private Inventory create(Player player, String title, Map<Integer, Runnable> actions) {
+        return create(player, title, actions, DEFAULT_MENU_SIZE);
+    }
+
+    private Inventory create(
+            Player player, String title, Map<Integer, Runnable> actions, int size) {
         MenuHolder holder = new MenuHolder(player.getUniqueId(), actions);
-        Inventory inventory = Bukkit.createInventory(holder, MENU_SIZE, Component.text(title));
+        Inventory inventory = Bukkit.createInventory(holder, size, Component.text(title));
         holder.setInventory(inventory);
         return inventory;
     }
@@ -297,24 +349,41 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
     }
 
     private static Material optionMaterial(ExchangeSelection selection, Material fallback) {
-        if (selection.kind() != ExchangeKind.RESOURCE) {
+        if (selection.kind() != ExchangeKind.RESOURCE
+                && selection.kind() != ExchangeKind.EMERALD_DIAMOND
+                && selection.kind() != ExchangeKind.DIAMOND_EMERALD) {
             return fallback;
         }
-        return switch (selection.target()) {
-            case "minecraft:diamond" -> Material.DIAMOND;
-            case "minecraft:emerald" -> Material.EMERALD;
-            case "minecraft:gunpowder" -> Material.GUNPOWDER;
-            default -> fallback;
-        };
+        Material material = Material.matchMaterial(selection.target());
+        return material == null || !material.isItem() || material.isAir() ? fallback : material;
     }
 
     private static Material resourceMaterial(String target) {
-        return switch (target) {
-            case "minecraft:diamond" -> Material.DIAMOND;
-            case "minecraft:emerald" -> Material.EMERALD;
-            case "minecraft:gunpowder" -> Material.GUNPOWDER;
-            default -> Material.BARRIER;
-        };
+        Material material = Material.matchMaterial(target);
+        return material == null || !material.isItem() || material.isAir()
+                ? Material.CHEST
+                : material;
+    }
+
+    static int menuSize(int optionCount) {
+        return optionCount <= 18 ? 27 : 54;
+    }
+
+    static int backSlot(int menuSize) {
+        return menuSize - 5;
+    }
+
+    static List<Integer> contentSlots(int optionCount, int menuSize) {
+        if (optionCount <= 7) {
+            int first = 9 + (9 - optionCount) / 2;
+            return java.util.stream.IntStream.range(first, first + optionCount)
+                    .boxed()
+                    .toList();
+        }
+        int rows = menuSize == 27 ? 2 : 5;
+        return java.util.stream.IntStream.range(0, Math.min(optionCount, rows * 9))
+                .boxed()
+                .toList();
     }
 
     @EventHandler

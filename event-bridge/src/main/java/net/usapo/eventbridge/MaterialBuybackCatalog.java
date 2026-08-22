@@ -10,9 +10,11 @@ import org.bukkit.inventory.ItemStack;
 final class MaterialBuybackCatalog {
     static final int STACK_SIZE = 64;
     static final int MAX_ITEM_COUNT = 36 * STACK_SIZE;
-    static final int DAILY_LIMIT_XP = 1_500;
+    static final int DAILY_LIMIT_XP = 3_000;
     private static final List<Integer> STACK_OPTIONS = List.of(1, 2, 4, 8, 16);
-    static final List<Rate> RATES = List.of(
+    static final Rate EMERALD_RATE =
+            new Rate(Material.EMERALD, "minecraft:emerald", "エメラルド", 500);
+    static final List<Rate> MATERIAL_RATES = List.of(
             new Rate(Material.DIRT, "minecraft:dirt", "土", 30),
             new Rate(Material.SAND, "minecraft:sand", "砂", 40),
             new Rate(Material.SANDSTONE, "minecraft:sandstone", "砂岩", 50),
@@ -23,6 +25,9 @@ final class MaterialBuybackCatalog {
                     "深層岩の丸石",
                     35),
             new Rate(Material.TUFF, "minecraft:tuff", "凝灰岩", 40));
+    static final List<Rate> RATES = java.util.stream.Stream.concat(
+                    java.util.stream.Stream.of(EMERALD_RATE), MATERIAL_RATES.stream())
+            .toList();
 
     private MaterialBuybackCatalog() {}
 
@@ -62,6 +67,7 @@ final class MaterialBuybackCatalog {
         return new ExchangeSelection(
                 ExchangeKind.MATERIAL_BUYBACK,
                 rate.itemId(),
+                rate.itemName(),
                 itemCount,
                 0,
                 rewardXp,

@@ -215,7 +215,7 @@ final class MarketCommandTest {
     }
 
     @Test
-    void commandListingShowsCustomNameTogetherWithUnderlyingMaterial() {
+    void commandListingShowsGeneratedAndCustomNamesWithEnchantmentDetails() {
         MemoryRepository repository = new MemoryRepository();
         repository.create(
                 EVENT_ID,
@@ -257,7 +257,8 @@ final class MarketCommandTest {
         assertTrue(messages.stream().anyMatch(message -> message.contains(
                 "#1 効率Ⅴ耐久力Ⅲ修繕付きの斧（ダイヤモンドの斧） x1 / 1000 サーバーXP")));
         assertTrue(messages.stream()
-                .anyMatch(message -> message.contains("#2 夜伐り x1 / 1000 サーバーXP")));
+                .anyMatch(message -> message.contains(
+                        "#2 夜伐り（効率強化 V / 修繕 / 耐久力 III） x1 / 1000 サーバーXP")));
     }
 
     @Test

@@ -7,6 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerExpChangeEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -73,6 +74,14 @@ final class ActivityListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         if (!event.isCancelled() && WOODCUTTING_BLOCKS.contains(event.getBlock().getType())) {
             publisher.publish(ActivityKind.WOODCUTTING, event.getPlayer(), 1);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (!event.isCancelled()
+                && WOODCUTTING_BLOCKS.contains(event.getBlockPlaced().getType())) {
+            publisher.publish(ActivityKind.WOODCUTTING_RESET, event.getPlayer(), 1);
         }
     }
 

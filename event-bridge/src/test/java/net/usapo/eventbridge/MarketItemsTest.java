@@ -35,13 +35,34 @@ final class MarketItemsTest {
                         Component.text("効率Ⅴ耐久力Ⅲ修繕付きの斧"),
                         enchantments)));
         assertEquals(
-                "夜伐り",
+                "夜伐り（効率強化 V / 修繕 / 耐久力 III）",
                 MarketItems.marketDisplayName(
                         item("diamond_axe", Component.text("夜伐り"), enchantments)));
         assertEquals(
                 "古代の残骸",
                 MarketItems.marketDisplayName(item(
                         "ancient_debris", Component.translatable("block.minecraft.ancient_debris"))));
+    }
+
+    @Test
+    void marketNameShowsEveryEnchantmentOnOrdinaryEquipment() {
+        Map<Keyed, Integer> enchantments = Map.of(
+                keyed("unbreaking"), 3,
+                keyed("loyalty"), 3,
+                keyed("mending"), 1,
+                keyed("impaling"), 5,
+                keyed("channeling"), 1);
+
+        assertEquals(
+                "トライデント（召雷 / 水生特効 V / 忠誠 III / 修繕 / 耐久力 III）",
+                MarketItems.marketDisplayName(item(
+                        "trident",
+                        Component.translatable("item.minecraft.trident"),
+                        enchantments)));
+        assertEquals(
+                "海神の槍（召雷 / 水生特効 V / 忠誠 III / 修繕 / 耐久力 III）",
+                MarketItems.marketDisplayName(
+                        item("trident", Component.text("海神の槍"), enchantments)));
     }
 
     @Test

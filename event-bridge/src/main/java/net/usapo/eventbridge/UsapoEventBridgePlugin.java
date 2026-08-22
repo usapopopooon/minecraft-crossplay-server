@@ -17,11 +17,23 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        ExchangeCatalog exchangeCatalog = new ExchangeCatalog();
+        ResourceCatalogManager resourceCatalogManager = new ResourceCatalogManager(
+                exchangeCatalog,
+                new File(getDataFolder(), "resource-catalog.yml"),
+                getLogger()::warning);
+        resourceCatalogManager.load();
+        ResourceCatalogCommand resourceCatalogCommand =
+                new ResourceCatalogCommand(resourceCatalogManager);
         VoiceBonusRegistry voiceBonuses = new VoiceBonusRegistry();
         EmeraldDiamondExchange emeraldExchange = new EmeraldDiamondExchange();
         NamespacedKey exchangeHistoryKey = new NamespacedKey(this, "emerald_exchange_history");
+        NamespacedKey diamondExchangeHistoryKey =
+                new NamespacedKey(this, "diamond_exchange_history");
         EmeraldExchangePublisher exchangePublisher =
                 new EmeraldExchangePublisher(getLogger()::info);
+        DiamondExchangePublisher diamondExchangePublisher =
+                new DiamondExchangePublisher(getLogger()::info);
         VoiceBonusCommand voiceBonusCommand = new VoiceBonusCommand(
                 voiceBonuses, playerId -> getServer().getPlayer(playerId) != null);
         EmeraldDiamondCommand emeraldDiamondCommand = new EmeraldDiamondCommand(
@@ -39,6 +51,26 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                             .append(Component.text("を獲得しました!")));
                     player.sendActionBar(Component.text(
                             "交換完了: エメラルド x" + emeraldCount + " → ダイヤモンド x" + diamondCount,
+                            NamedTextColor.AQUA));
+                });
+        DiamondEmeraldCommand diamondEmeraldCommand = new DiamondEmeraldCommand(
+                playerId -> getServer().getPlayer(playerId),
+                (player, requestId, diamondCount) -> emeraldExchange.exchangeDiamonds(
+                        new EmeraldDiamondExchange.BukkitPlayerState(
+                                player, diamondExchangeHistoryKey),
+                        requestId,
+                        diamondCount),
+                (requestId, player, diamondCount, emeraldCount) -> {
+                    diamondExchangePublisher.publish(
+                            requestId, player, diamondCount, emeraldCount);
+                    getServer().broadcast(Component.text(player.getName(), NamedTextColor.YELLOW)
+                            .append(Component.text("さんがダイヤモンド x" + diamondCount))
+                            .append(Component.text("を交換し、エメラルド x" + emeraldCount,
+                                    NamedTextColor.AQUA))
+                            .append(Component.text("を獲得しました!")));
+                    player.sendActionBar(Component.text(
+                            "交換完了: ダイヤモンド x" + diamondCount + " → エメラルド x"
+                                    + emeraldCount,
                             NamedTextColor.AQUA));
                 });
         MarketRepository marketRepository;
@@ -82,9 +114,11 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                 .setExecutor(new EventBridgeCommand(
                         voiceBonusCommand,
                         emeraldDiamondCommand,
+                        diamondEmeraldCommand,
                         marketTransferCommand,
                         questControlCommand,
-                        materialBuybackCommand));
+                        materialBuybackCommand,
+                        resourceCatalogCommand));
         ItemGachaRequestPublisher itemGachaPublisher =
                 new ItemGachaRequestPublisher(getLogger()::info);
         BedrockGachaFormGateway itemGachaForms = (player, selectionHandler) -> false;
@@ -93,7 +127,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         BedrockQuestFormGateway questForms = (player, actionHandler) -> false;
         if (getServer().getPluginManager().isPluginEnabled("floodgate")) {
             itemGachaForms = new FloodgateGachaFormGateway(this);
-            exchangeForms = new FloodgateExchangeFormGateway(this);
+            exchangeForms = new FloodgateExchangeFormGateway(this, exchangeCatalog);
             marketForms = new FloodgateMarketFormGateway(this, marketRepository);
             questForms = new FloodgateQuestFormGateway(this, questRepository);
         } else {
@@ -106,12 +140,14 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         PluginCommand gacha = Objects.requireNonNull(getCommand("gacha"));
         gacha.setExecutor(itemGachaCommand);
         gacha.setTabCompleter(itemGachaCommand);
-        JavaExchangeChestMenu exchangeMenus = new JavaExchangeChestMenu(this);
+        JavaExchangeChestMenu exchangeMenus = new JavaExchangeChestMenu(this, exchangeCatalog);
         ExchangeCommand exchangeCommand = new ExchangeCommand(
                 new ExchangeRequestPublisher(getLogger()::info),
                 exchangeForms,
                 exchangeMenus,
-                materialBuybacks);
+                exchangeCatalog,
+                materialBuybacks,
+                java.time.Clock.systemUTC()::millis);
         PluginCommand exchange = Objects.requireNonNull(getCommand("exchange"));
         exchange.setExecutor(exchangeCommand);
         exchange.setTabCompleter(exchangeCommand);

@@ -1,6 +1,8 @@
 package net.usapo.eventbridge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerExpChangeEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.junit.jupiter.api.Test;
@@ -67,6 +70,35 @@ final class ActivityListenerTest {
         BlockBreakEvent cancelled = new BlockBreakEvent(block(Material.OAK_LOG), player);
         cancelled.setCancelled(true);
         listener.onBlockBreak(cancelled);
+
+        assertEquals(List.of(), published);
+    }
+
+    @Test
+    void placingSupportedLogPublishesWoodcuttingResetForTheBuilder() {
+        BlockPlaceEvent event = mock(BlockPlaceEvent.class);
+        when(event.getBlockPlaced()).thenReturn(block(Material.OAK_LOG));
+        when(event.getPlayer()).thenReturn(player);
+
+        listener.onBlockPlace(event);
+
+        assertEquals(
+                List.of(new PublishedActivity(ActivityKind.WOODCUTTING_RESET, player, 1)),
+                published);
+    }
+
+    @Test
+    void placingPlanksOrCancelledLogDoesNotResetWoodcutting() {
+        BlockPlaceEvent planks = mock(BlockPlaceEvent.class);
+        when(planks.getBlockPlaced()).thenReturn(block(Material.OAK_PLANKS));
+        when(planks.getPlayer()).thenReturn(player);
+        BlockPlaceEvent cancelledLog = mock(BlockPlaceEvent.class);
+        when(cancelledLog.getBlockPlaced()).thenReturn(block(Material.OAK_LOG));
+        when(cancelledLog.getPlayer()).thenReturn(player);
+        when(cancelledLog.isCancelled()).thenReturn(true);
+
+        listener.onBlockPlace(planks);
+        listener.onBlockPlace(cancelledLog);
 
         assertEquals(List.of(), published);
     }

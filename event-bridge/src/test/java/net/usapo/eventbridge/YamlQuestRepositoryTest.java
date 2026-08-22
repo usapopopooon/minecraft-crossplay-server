@@ -219,6 +219,78 @@ final class YamlQuestRepositoryTest {
         assertTrue(repository.pendingNotices(WORKER).isEmpty());
     }
 
+    @Test
+    void systemQuestConsumesSubmissionAndOnlyCreatesTheWorkersRewardClaim() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "system-completion.yml"));
+        ItemStack requested = item("netherite_sword", 1);
+        when(requested.getType().isItem()).thenReturn(true);
+        when(requested.isSimilar(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        ItemStack submitted = item("netherite_sword", 1);
+        when(submitted.getType().isItem()).thenReturn(true);
+        ItemStack wrongType = item("stone", 1);
+        when(wrongType.getType().isItem()).thenReturn(true);
+        QuestListing created = repository.create(
+                EVENT,
+                QuestIssuer.SYSTEM_ID,
+                QuestIssuer.SYSTEM_NAME,
+                "minecraft:netherite_sword",
+                "ネザライトの剣",
+                requested,
+                1,
+                24,
+                item("diamond", 3),
+                1_000);
+        repository.accept(created.id(), ACCEPT, WORKER, "Worker", 2_000);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> repository.complete(created.id(), COMPLETE, WORKER, wrongType, 3_000));
+        repository.complete(created.id(), COMPLETE, WORKER, submitted, 3_000);
+
+        assertTrue(repository.pendingClaims(QuestIssuer.SYSTEM_ID).isEmpty());
+        assertClaim(repository.pendingClaims(WORKER), "diamond", 3);
+    }
+
+    @Test
+    void cancellingOrExpiringASystemQuestDoesNotMintARefundOrPlayerNotice()
+            throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "system-cancel.yml"));
+        ItemStack requested = item("stone", 1);
+        when(requested.getType().isItem()).thenReturn(true);
+        QuestListing cancelled = repository.create(
+                EVENT,
+                QuestIssuer.SYSTEM_ID,
+                QuestIssuer.SYSTEM_NAME,
+                "minecraft:stone",
+                "石",
+                requested,
+                32,
+                24,
+                item("diamond", 3),
+                1_000);
+        repository.cancel(cancelled.id(), UUID.randomUUID(), QuestIssuer.SYSTEM_ID);
+
+        ItemStack expiringRequest = item("dirt", 1);
+        when(expiringRequest.getType().isItem()).thenReturn(true);
+        QuestListing expiring = repository.create(
+                UUID.randomUUID(),
+                QuestIssuer.SYSTEM_ID,
+                QuestIssuer.SYSTEM_NAME,
+                "minecraft:dirt",
+                "土",
+                expiringRequest,
+                32,
+                24,
+                item("emerald", 4),
+                2_000);
+        repository.expire(expiring.openExpiresAtMillis());
+
+        assertTrue(repository.pendingClaims(QuestIssuer.SYSTEM_ID).isEmpty());
+        assertTrue(repository.pendingNotices(QuestIssuer.SYSTEM_ID).isEmpty());
+    }
+
     private static void assertClaim(List<QuestClaim> claims, String key, int amount) {
         assertEquals(1, claims.size());
         assertEquals(key, claims.getFirst().item().getType().getKey().getKey());

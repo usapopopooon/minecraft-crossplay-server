@@ -52,7 +52,10 @@ record QuestListing(
             throw new IllegalArgumentException("invalid quest listing");
         }
         if (requestedItem != null) {
-            if (!QuestItems.isSupportedRequest(requestedItem)
+            boolean supported = QuestIssuer.SYSTEM_ID.equals(ownerId)
+                    ? QuestItems.isSupportedAdminItem(requestedItem)
+                    : QuestItems.isSupportedRequest(requestedItem);
+            if (!supported
                     || !requestedItemId.equals(requestedItem.getType().getKey().toString())) {
                 throw new IllegalArgumentException("invalid requested quest item");
             }

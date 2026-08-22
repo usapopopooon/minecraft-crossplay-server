@@ -21,6 +21,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
     private final ExchangeRequestSink requestSink;
     private final BedrockExchangeFormGateway forms;
     private final JavaExchangeMenuGateway menus;
+    private final ExchangeCatalog catalog;
     private final MaterialBuybackPendingRegistry pendingBuybacks;
     private final LongSupplier nowMillis;
     private final Map<UUID, Long> lastRequests = new ConcurrentHashMap<>();
@@ -30,6 +31,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                 requestSink,
                 forms,
                 (player, handler) -> false,
+                new ExchangeCatalog(),
                 new MaterialBuybackPendingRegistry(),
                 Clock.systemUTC()::millis);
     }
@@ -42,6 +44,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                 requestSink,
                 forms,
                 menus,
+                new ExchangeCatalog(),
                 new MaterialBuybackPendingRegistry(),
                 Clock.systemUTC()::millis);
     }
@@ -51,7 +54,13 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             BedrockExchangeFormGateway forms,
             JavaExchangeMenuGateway menus,
             MaterialBuybackPendingRegistry pendingBuybacks) {
-        this(requestSink, forms, menus, pendingBuybacks, Clock.systemUTC()::millis);
+        this(
+                requestSink,
+                forms,
+                menus,
+                new ExchangeCatalog(),
+                pendingBuybacks,
+                Clock.systemUTC()::millis);
     }
 
     ExchangeCommand(
@@ -62,6 +71,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                 requestSink,
                 forms,
                 (player, handler) -> false,
+                new ExchangeCatalog(),
                 new MaterialBuybackPendingRegistry(),
                 nowMillis);
     }
@@ -71,7 +81,13 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             BedrockExchangeFormGateway forms,
             JavaExchangeMenuGateway menus,
             LongSupplier nowMillis) {
-        this(requestSink, forms, menus, new MaterialBuybackPendingRegistry(), nowMillis);
+        this(
+                requestSink,
+                forms,
+                menus,
+                new ExchangeCatalog(),
+                new MaterialBuybackPendingRegistry(),
+                nowMillis);
     }
 
     ExchangeCommand(
@@ -80,9 +96,26 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             JavaExchangeMenuGateway menus,
             MaterialBuybackPendingRegistry pendingBuybacks,
             LongSupplier nowMillis) {
+        this(
+                requestSink,
+                forms,
+                menus,
+                new ExchangeCatalog(),
+                pendingBuybacks,
+                nowMillis);
+    }
+
+    ExchangeCommand(
+            ExchangeRequestSink requestSink,
+            BedrockExchangeFormGateway forms,
+            JavaExchangeMenuGateway menus,
+            ExchangeCatalog catalog,
+            MaterialBuybackPendingRegistry pendingBuybacks,
+            LongSupplier nowMillis) {
         this.requestSink = requestSink;
         this.forms = forms;
         this.menus = menus;
+        this.catalog = catalog;
         this.pendingBuybacks = pendingBuybacks;
         this.nowMillis = nowMillis;
     }
@@ -125,7 +158,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                 .find(player.getInventory().getItemInMainHand().getType())
                 .orElse(null);
         if (rate == null) {
-            player.sendMessage("買取対象の通常ブロックをメインハンドに持ってください。");
+            player.sendMessage("売却対象の通常アイテムをメインハンドに持ってください。");
             return;
         }
         int available = MaterialBuybackCatalog.plainCount(player, rate.material());
@@ -141,9 +174,8 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                     * MaterialBuybackCatalog.STACK_SIZE;
             default -> 0;
         };
-        if (amount.equals("all")
-                && count > MaterialBuybackCatalog.maximumDailyItemCount(rate)) {
-            player.sendMessage("すべて交換すると、未使用でも1日の買取上限を超えます。"
+        if (count > MaterialBuybackCatalog.maximumDailyItemCount(rate)) {
+            player.sendMessage("この数量は、未使用でも1日の売却上限を超えます。"
                     + "/exchange buyback max で1回に選べる最大数を指定できます。");
             return;
         }
@@ -155,7 +187,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         submit(player, MaterialBuybackCatalog.selection(rate, count));
     }
 
-    private static Optional<ExchangeSelection> parse(String[] arguments) {
+    private Optional<ExchangeSelection> parse(String[] arguments) {
         String operation = arguments[0].toLowerCase(Locale.ROOT);
         if (operation.equals("balance") && arguments.length == 1) {
             return Optional.of(ExchangeSelection.balance());
@@ -165,10 +197,13 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         }
         if (operation.equals("resource") && arguments.length == 3) {
             return parsePositiveInteger(arguments[2])
-                    .flatMap(count -> ExchangeCatalog.findResource(arguments[1], count));
+                    .flatMap(count -> catalog.findResource(arguments[1], count));
         }
         if (operation.equals("emerald-diamond") && arguments.length == 2) {
             return parsePositiveInteger(arguments[1]).flatMap(ExchangeCatalog::findEmeraldDiamond);
+        }
+        if (operation.equals("diamond-emerald") && arguments.length == 2) {
+            return parsePositiveInteger(arguments[1]).flatMap(ExchangeCatalog::findDiamondEmerald);
         }
         return Optional.empty();
     }
@@ -188,7 +223,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         }
         if (selection.kind() == ExchangeKind.MATERIAL_BUYBACK
                 && pendingBuybacks.pendingRequest(player.getUniqueId()).isPresent()) {
-            player.sendMessage("前の資材買取を処理中です。結果が表示されるまでお待ちください。"
+            player.sendMessage("前の資源売却を処理中です。結果が表示されるまでお待ちください。"
                     + "長時間続く場合は運営へご連絡ください。");
             return;
         }
@@ -210,14 +245,14 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private static void sendUsage(Player player) {
+    private void sendUsage(Player player) {
         player.sendMessage("交換メニュー: /exchange");
         player.sendMessage("XP交換: /exchange xp <Minecraft XP量: 50|250|500|5000>");
+        player.sendMessage("資源交換: /exchange resource <資源ID> <個数>（Tab補完あり）");
+        player.sendMessage("両替: /exchange emerald-diamond <32|64>");
+        player.sendMessage("両替: /exchange diamond-emerald <1|4>");
         player.sendMessage(
-                "資源交換: /exchange resource <diamond|emerald|gunpowder> <個数>");
-        player.sendMessage("手持ち交換: /exchange emerald-diamond <32|64>");
-        player.sendMessage(
-                "資材買取: /exchange buyback <1|2|4|8|16|max|all>（メインハンドで種類を指定）");
+                "資源売却: /exchange buyback <1|2|4|8|16|max|all>（メインハンドで種類を指定）");
         player.sendMessage("XP残高: /exchange balance");
     }
 
@@ -229,7 +264,13 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             @NotNull String[] arguments) {
         if (arguments.length == 1) {
             return matching(
-                    List.of("xp", "resource", "emerald-diamond", "buyback", "balance"),
+                    List.of(
+                            "xp",
+                            "resource",
+                            "emerald-diamond",
+                            "diamond-emerald",
+                            "buyback",
+                            "balance"),
                     arguments[0]);
         }
         String operation = arguments[0].toLowerCase(Locale.ROOT);
@@ -237,23 +278,29 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             return matching(List.of("50", "250", "500", "5000"), arguments[1]);
         }
         if (arguments.length == 2 && operation.equals("resource")) {
-            return matching(List.of("diamond", "emerald", "gunpowder"), arguments[1]);
+            return matching(catalog.resourceGroups().stream()
+                    .map(group -> withoutMinecraftNamespace(group.target()))
+                    .toList(), arguments[1]);
         }
         if (arguments.length == 2 && operation.equals("emerald-diamond")) {
             return matching(List.of("32", "64"), arguments[1]);
+        }
+        if (arguments.length == 2 && operation.equals("diamond-emerald")) {
+            return matching(List.of("1", "4"), arguments[1]);
         }
         if (arguments.length == 2 && operation.equals("buyback")) {
             return matching(List.of("1", "2", "4", "8", "16", "max", "all"), arguments[1]);
         }
         if (arguments.length == 3 && operation.equals("resource")) {
             String resource = arguments[1].toLowerCase(Locale.ROOT);
-            List<String> counts = resource.equals("diamond")
-                    ? List.of("1", "3", "8", "16", "32", "64")
-                    : resource.equals("emerald")
-                            ? List.of("4", "16", "32", "64")
-                            : resource.equals("gunpowder")
-                                    ? List.of("8", "32", "64")
-                                    : List.of();
+            String itemId = resource.contains(":") ? resource : "minecraft:" + resource;
+            List<String> counts = catalog.resourceGroups().stream()
+                    .filter(group -> group.target().equals(itemId))
+                    .findFirst()
+                    .map(group -> group.options().stream()
+                            .map(selection -> Integer.toString(selection.amount()))
+                            .toList())
+                    .orElseGet(List::of);
             return matching(counts, arguments[2]);
         }
         return List.of();
@@ -262,5 +309,9 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
     private static List<String> matching(List<String> options, String prefix) {
         String normalized = prefix.toLowerCase(Locale.ROOT);
         return options.stream().filter(option -> option.startsWith(normalized)).toList();
+    }
+
+    private static String withoutMinecraftNamespace(String itemId) {
+        return itemId.startsWith("minecraft:") ? itemId.substring("minecraft:".length()) : itemId;
     }
 }

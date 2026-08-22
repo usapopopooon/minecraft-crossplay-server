@@ -14,6 +14,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.CommandSender;
@@ -151,6 +152,81 @@ final class QuestControlCommandTest {
         assertEquals(1, repository.pendingClaims(OWNER).size());
     }
 
+    @Test
+    void adminCreateBuildsAnIdempotentSystemQuestWithoutPlayerInventory() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "admin-create.yml"));
+        List<String> states = new ArrayList<>();
+        QuestActions actions = new QuestActions(
+                repository,
+                (changed, kind) -> states.add(kind + "|" + changed.status()),
+                key("pending_submission"),
+                changed -> {});
+        ItemStack stone = mutableItem("stone", "石", 64);
+        ItemStack diamond = mutableItem("diamond", "ダイヤモンド", 64);
+        QuestControlCommand control = new QuestControlCommand(
+                actions,
+                repository,
+                ignored -> null,
+                itemId -> itemId.equals("minecraft:stone") ? stone : diamond);
+        List<String> responses = new ArrayList<>();
+        String[] arguments = {
+            "quest-admin-create",
+            "minecraft:stone",
+            "32",
+            "minecraft:diamond",
+            "3",
+            "24",
+            EVENT.toString()
+        };
+
+        control.onCommand(sender(responses), null, "usapo-event-bridge", arguments);
+        control.onCommand(sender(responses), null, "usapo-event-bridge", arguments);
+
+        QuestListing quest = repository.find(1).orElseThrow();
+        assertEquals(QuestIssuer.SYSTEM_ID, quest.ownerId());
+        assertEquals(QuestIssuer.SYSTEM_NAME, quest.ownerName());
+        assertEquals("minecraft:stone", quest.requestedItemId());
+        assertEquals(32, quest.requestedCount());
+        assertEquals("diamond", quest.reward().getType().getKey().getKey());
+        assertEquals(3, quest.reward().getAmount());
+        assertEquals(List.of("created|OPEN", "created|OPEN"), states);
+        assertTrue(responses.getFirst().endsWith("|1|completed|new"));
+        assertTrue(responses.getLast().endsWith("|1|completed|duplicate"));
+    }
+
+    @Test
+    void adminCreateRejectsAnUnknownOrOversizedItem() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "admin-invalid.yml"));
+        QuestActions actions = new QuestActions(
+                repository, (changed, kind) -> {}, key("pending_submission"), changed -> {});
+        ItemStack stone = mutableItem("stone", "石", 64);
+        QuestControlCommand control = new QuestControlCommand(
+                actions,
+                repository,
+                ignored -> null,
+                itemId -> itemId.equals("minecraft:stone") ? stone : null);
+        List<String> responses = new ArrayList<>();
+
+        control.onCommand(
+                sender(responses),
+                null,
+                "usapo-event-bridge",
+                new String[] {
+                    "quest-admin-create",
+                    "minecraft:stone",
+                    "65",
+                    "minecraft:missing",
+                    "1",
+                    "24",
+                    EVENT.toString()
+                });
+
+        assertTrue(repository.openQuests().isEmpty());
+        assertTrue(responses.getFirst().endsWith("|0|invalid_requested_count|new"));
+    }
+
     private static CommandSender sender(List<String> responses) {
         return (CommandSender) Proxy.newProxyInstance(
                 CommandSender.class.getClassLoader(),
@@ -178,6 +254,31 @@ final class QuestControlCommandTest {
         when(item.getMaxStackSize()).thenReturn(64);
         when(item.hasItemMeta()).thenReturn(false);
         when(item.serialize()).thenReturn(Map.of("type", key, "amount", amount));
+        return item;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static ItemStack mutableItem(String key, String name, int maxStackSize) {
+        Material material = mock(Material.class);
+        when(material.isAir()).thenReturn(false);
+        when(material.isItem()).thenReturn(true);
+        when(material.getKey()).thenReturn(NamespacedKey.minecraft(key));
+        when(material.translationKey()).thenReturn("item.minecraft." + key);
+        AtomicInteger amount = new AtomicInteger(1);
+        ItemStack item = mock(ItemStack.class);
+        when(item.clone()).thenReturn(item);
+        when(item.getType()).thenReturn(material);
+        when(item.getAmount()).thenAnswer(ignored -> amount.get());
+        when(item.getMaxStackSize()).thenReturn(maxStackSize);
+        when(item.hasItemMeta()).thenReturn(false);
+        when(item.effectiveName()).thenReturn(net.kyori.adventure.text.Component.text(name));
+        org.mockito.Mockito.doAnswer(invocation -> {
+                    amount.set(invocation.getArgument(0));
+                    return null;
+                })
+                .when(item)
+                .setAmount(org.mockito.ArgumentMatchers.anyInt());
+        when(item.serialize()).thenReturn(Map.of("type", key));
         return item;
     }
 

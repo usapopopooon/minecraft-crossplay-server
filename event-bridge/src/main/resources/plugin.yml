@@ -37,8 +37,11 @@ commands:
       /usapo-event-bridge quest-abandon <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-cancel <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-invalidate <quest> <owner-uuid> <request-uuid>
+      /usapo-event-bridge quest-admin-create <request-item> <count> <reward-item> <count> <hours> <request-uuid>
       /usapo-event-bridge material-buyback <player-uuid> <item-id> <count> <request-uuid>
       /usapo-event-bridge material-buyback-release <player-uuid> <request-uuid>
+      /usapo-event-bridge resource-catalog-sync <revision> <base64url-payload>
+      /usapo-event-bridge resource-pack-validate <base64url-payload>
     permission: usapo.eventbridge.control
 permissions:
   usapo.exchange.use:

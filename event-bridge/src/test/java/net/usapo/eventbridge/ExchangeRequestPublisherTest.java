@@ -24,13 +24,33 @@ final class ExchangeRequestPublisherTest {
                 () -> requestId);
 
         UUID published = publisher.publish(
-                ExchangeCatalog.findResource("diamond", 3).orElseThrow(),
+                new ExchangeCatalog().findResource("diamond", 3).orElseThrow(),
                 player(".Yuki1991", playerId));
 
         assertEquals(requestId, published);
         assertEquals(
                 List.of("USAPO_EXCHANGE_REQUEST|1|" + requestId + "|" + playerId
-                        + "|Lll1a2kxOTkx|resource|minecraft:diamond|3|2160|3|1786924800000"),
+                        + "|Lll1a2kxOTkx|resource|minecraft:diamond|3|750|3|1786924800000"),
+                messages);
+    }
+
+    @Test
+    void publishesDiamondToEmeraldWithoutSwappingInputAndReward() {
+        List<String> messages = new ArrayList<>();
+        UUID requestId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+        UUID playerId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        ExchangeRequestPublisher publisher = new ExchangeRequestPublisher(
+                messages::add,
+                Clock.fixed(Instant.parse("2026-08-17T00:00:00Z"), ZoneOffset.UTC),
+                () -> requestId);
+
+        publisher.publish(
+                ExchangeCatalog.findDiamondEmerald(4).orElseThrow(),
+                player("Steve", playerId));
+
+        assertEquals(
+                List.of("USAPO_EXCHANGE_REQUEST|1|" + requestId + "|" + playerId
+                        + "|U3RldmU|diamond_emerald|minecraft:emerald|4|0|64|1786924800000"),
                 messages);
     }
 

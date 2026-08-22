@@ -15,12 +15,15 @@ import org.bukkit.persistence.PersistentDataType;
 
 final class EmeraldDiamondExchange {
     private static final Set<Integer> ALLOWED_EMERALD_COUNTS = Set.of(32, 64);
+    private static final Set<Integer> ALLOWED_DIAMOND_COUNTS = Set.of(1, 4);
     private static final int EMERALDS_PER_DIAMOND = 32;
+    private static final int EMERALDS_RECEIVED_PER_DIAMOND = 16;
     private static final int HISTORY_LIMIT = 32;
 
     enum Status {
         COMPLETED("completed"),
         INSUFFICIENT_EMERALDS("insufficient_emeralds"),
+        INSUFFICIENT_DIAMONDS("insufficient_diamonds"),
         INVENTORY_FULL("inventory_full");
 
         private final String wireName;
@@ -70,25 +73,64 @@ final class EmeraldDiamondExchange {
             throw new IllegalArgumentException("emerald count must be 32 or 64");
         }
         int diamondCount = emeraldCount / EMERALDS_PER_DIAMOND;
-        Integer completedEmeraldCount = state.completedEmeraldCount(requestId);
-        if (completedEmeraldCount != null) {
-            if (completedEmeraldCount != emeraldCount) {
+        return exchange(
+                state,
+                requestId,
+                ItemKind.EMERALD,
+                emeraldCount,
+                ItemKind.DIAMOND,
+                diamondCount,
+                Status.INSUFFICIENT_EMERALDS,
+                emeraldCount,
+                diamondCount);
+    }
+
+    Result exchangeDiamonds(PlayerState state, UUID requestId, int diamondCount) {
+        if (!ALLOWED_DIAMOND_COUNTS.contains(diamondCount)) {
+            throw new IllegalArgumentException("diamond count must be 1 or 4");
+        }
+        int emeraldCount = diamondCount * EMERALDS_RECEIVED_PER_DIAMOND;
+        return exchange(
+                state,
+                requestId,
+                ItemKind.DIAMOND,
+                diamondCount,
+                ItemKind.EMERALD,
+                emeraldCount,
+                Status.INSUFFICIENT_DIAMONDS,
+                emeraldCount,
+                diamondCount);
+    }
+
+    private static Result exchange(
+            PlayerState state,
+            UUID requestId,
+            ItemKind source,
+            int sourceCount,
+            ItemKind target,
+            int targetCount,
+            Status insufficientStatus,
+            int emeraldCount,
+            int diamondCount) {
+        Integer completedSourceCount = state.completedEmeraldCount(requestId);
+        if (completedSourceCount != null) {
+            if (completedSourceCount != sourceCount) {
                 throw new IllegalArgumentException("request ID was already used with another rate");
             }
             return new Result(Status.COMPLETED, emeraldCount, diamondCount, true);
         }
 
         InventorySlot[] planned = state.storageContents().clone();
-        if (count(planned, ItemKind.EMERALD) < emeraldCount) {
-            return new Result(Status.INSUFFICIENT_EMERALDS, emeraldCount, diamondCount, false);
+        if (count(planned, source) < sourceCount) {
+            return new Result(insufficientStatus, emeraldCount, diamondCount, false);
         }
-        removeEmeralds(planned, emeraldCount);
-        if (!addDiamonds(planned, diamondCount)) {
+        remove(planned, source, sourceCount);
+        if (!add(planned, target, targetCount)) {
             return new Result(Status.INVENTORY_FULL, emeraldCount, diamondCount, false);
         }
 
         state.setStorageContents(planned);
-        state.markCompleted(requestId, emeraldCount);
+        state.markCompleted(requestId, sourceCount);
         return new Result(Status.COMPLETED, emeraldCount, diamondCount, false);
     }
 
@@ -102,43 +144,43 @@ final class EmeraldDiamondExchange {
         return total;
     }
 
-    private static void removeEmeralds(InventorySlot[] contents, int count) {
-        List<Integer> emeraldSlots = new ArrayList<>();
+    private static void remove(InventorySlot[] contents, ItemKind kind, int count) {
+        List<Integer> sourceSlots = new ArrayList<>();
         for (int index = 0; index < contents.length; index++) {
             InventorySlot item = contents[index];
-            if (item.kind() == ItemKind.EMERALD) {
-                emeraldSlots.add(index);
+            if (item.kind() == kind) {
+                sourceSlots.add(index);
             }
         }
-        emeraldSlots.sort(Comparator.comparingInt(index -> contents[index].amount()));
+        sourceSlots.sort(Comparator.comparingInt(index -> contents[index].amount()));
 
         int remaining = count;
-        for (int index : emeraldSlots) {
+        for (int index : sourceSlots) {
             InventorySlot item = contents[index];
             int removed = Math.min(item.amount(), remaining);
             int updatedAmount = item.amount() - removed;
             contents[index] = updatedAmount == 0
                     ? InventorySlot.empty()
-                    : new InventorySlot(ItemKind.EMERALD, updatedAmount);
+                    : new InventorySlot(kind, updatedAmount);
             remaining -= removed;
             if (remaining == 0) {
                 return;
             }
         }
-        throw new IllegalStateException("emerald count changed during exchange planning");
+        throw new IllegalStateException("source count changed during exchange planning");
     }
 
-    private static boolean addDiamonds(InventorySlot[] contents, int count) {
+    private static boolean add(InventorySlot[] contents, ItemKind kind, int count) {
         int remaining = count;
         int maxStackSize = 64;
         for (int index = 0; index < contents.length && remaining > 0; index++) {
             InventorySlot item = contents[index];
-            if (item.kind() != ItemKind.DIAMOND) {
+            if (item.kind() != kind) {
                 continue;
             }
             int added = Math.min(maxStackSize - item.amount(), remaining);
             if (added > 0) {
-                contents[index] = new InventorySlot(ItemKind.DIAMOND, item.amount() + added);
+                contents[index] = new InventorySlot(kind, item.amount() + added);
                 remaining -= added;
             }
         }
@@ -148,7 +190,7 @@ final class EmeraldDiamondExchange {
                 continue;
             }
             int added = Math.min(maxStackSize, remaining);
-            contents[index] = new InventorySlot(ItemKind.DIAMOND, added);
+            contents[index] = new InventorySlot(kind, added);
             remaining -= added;
         }
         return remaining == 0;
@@ -247,7 +289,8 @@ final class EmeraldDiamondExchange {
                     }
                     String request = UUID.fromString(fields[0]).toString();
                     int emeraldCount = Integer.parseInt(fields[1]);
-                    if (ALLOWED_EMERALD_COUNTS.contains(emeraldCount)) {
+                    if (ALLOWED_EMERALD_COUNTS.contains(emeraldCount)
+                            || ALLOWED_DIAMOND_COUNTS.contains(emeraldCount)) {
                         requests.put(request, emeraldCount);
                     }
                 } catch (IllegalArgumentException ignored) {

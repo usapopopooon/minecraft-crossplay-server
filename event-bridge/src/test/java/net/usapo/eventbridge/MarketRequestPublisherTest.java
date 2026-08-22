@@ -91,7 +91,7 @@ final class MarketRequestPublisherTest {
     }
 
     @Test
-    void publishesPlayerAssignedNameWithoutAddingTheMaterial() {
+    void publishesPlayerAssignedNameWithEveryOrdinaryEnchantment() {
         List<String> messages = new ArrayList<>();
         UUID eventId = UUID.fromString("11111111-1111-4111-8111-111111111111");
         MarketRequestPublisher publisher = new MarketRequestPublisher(
@@ -105,10 +105,10 @@ final class MarketRequestPublisherTest {
                 ".Yuki1991",
                 1_000,
                 item(
-                        material("diamond_axe"),
+                        material("trident"),
                         1,
-                        Component.text("夜伐り"),
-                        axeEnchantments()),
+                        Component.text("海神の槍"),
+                        tridentEnchantments()),
                 MarketListing.Status.ACTIVE,
                 null,
                 null);
@@ -118,7 +118,10 @@ final class MarketRequestPublisherTest {
         String event = messages.getFirst();
         String[] fields = event.substring(MarketRequestPublisher.LISTING_PREFIX.length())
                 .split("\\|");
-        assertEquals("夜伐り", decode(fields[5]));
+        assertEquals("minecraft:trident", decode(fields[4]));
+        assertEquals(
+                "海神の槍（召雷 / 水生特効 V / 忠誠 III / 修繕 / 耐久力 III）",
+                decode(fields[5]));
     }
 
     @Test
@@ -194,6 +197,15 @@ final class MarketRequestPublisherTest {
                 3,
                 keyed("mending"),
                 1);
+    }
+
+    private static Map<Keyed, Integer> tridentEnchantments() {
+        return Map.of(
+                keyed("unbreaking"), 3,
+                keyed("loyalty"), 3,
+                keyed("mending"), 1,
+                keyed("impaling"), 5,
+                keyed("channeling"), 1);
     }
 
     private static Keyed keyed(String key) {
