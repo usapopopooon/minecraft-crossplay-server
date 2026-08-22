@@ -23,8 +23,9 @@ final class ExchangeRequestPublisherTest {
                 Clock.fixed(Instant.parse("2026-08-17T00:00:00Z"), ZoneOffset.UTC),
                 () -> requestId);
 
-        UUID published =
-                publisher.publish(ExchangeCatalog.RESOURCES.get(5), player(".Yuki1991", playerId));
+        UUID published = publisher.publish(
+                ExchangeCatalog.findResource("diamond", 3).orElseThrow(),
+                player(".Yuki1991", playerId));
 
         assertEquals(requestId, published);
         assertEquals(

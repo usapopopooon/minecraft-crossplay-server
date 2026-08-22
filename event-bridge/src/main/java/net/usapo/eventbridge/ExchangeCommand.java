@@ -213,7 +213,8 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
     private static void sendUsage(Player player) {
         player.sendMessage("交換メニュー: /exchange");
         player.sendMessage("XP交換: /exchange xp <Minecraft XP量: 50|250|500|5000>");
-        player.sendMessage("資源交換: /exchange resource <diamond|emerald> <個数>");
+        player.sendMessage(
+                "資源交換: /exchange resource <diamond|emerald|gunpowder> <個数>");
         player.sendMessage("手持ち交換: /exchange emerald-diamond <32|64>");
         player.sendMessage(
                 "資材買取: /exchange buyback <1|2|4|8|16|max|all>（メインハンドで種類を指定）");
@@ -236,7 +237,7 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             return matching(List.of("50", "250", "500", "5000"), arguments[1]);
         }
         if (arguments.length == 2 && operation.equals("resource")) {
-            return matching(List.of("diamond", "emerald"), arguments[1]);
+            return matching(List.of("diamond", "emerald", "gunpowder"), arguments[1]);
         }
         if (arguments.length == 2 && operation.equals("emerald-diamond")) {
             return matching(List.of("32", "64"), arguments[1]);
@@ -250,7 +251,9 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
                     ? List.of("1", "3", "8", "16", "32", "64")
                     : resource.equals("emerald")
                             ? List.of("4", "16", "32", "64")
-                            : List.of();
+                            : resource.equals("gunpowder")
+                                    ? List.of("8", "32", "64")
+                                    : List.of();
             return matching(counts, arguments[2]);
         }
         return List.of();

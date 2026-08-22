@@ -48,7 +48,7 @@ metadata-bearing items and awards at most 1,500 server XP per player per JST
 day, resetting at 00:00 JST. The completion message includes the updated server
 XP balance and the remaining daily buyback allowance. Clients where a menu
 cannot be shown can use `/exchange xp <50|250|500|5000>`,
-`/exchange resource <diamond|emerald> <count>`,
+`/exchange resource <diamond|emerald|gunpowder> <count>`,
 `/exchange emerald-diamond <32|64>`,
 `/exchange buyback <1|2|4|8|16|max|all>` while holding the material in the main
 hand, and `/exchange balance`. The request carries

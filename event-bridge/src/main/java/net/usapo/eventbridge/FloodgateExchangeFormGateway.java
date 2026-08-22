@@ -13,8 +13,12 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
     private final FloodgateApi floodgate;
 
     FloodgateExchangeFormGateway(JavaPlugin plugin) {
+        this(plugin, FloodgateApi.getInstance());
+    }
+
+    FloodgateExchangeFormGateway(JavaPlugin plugin, FloodgateApi floodgate) {
         this.plugin = plugin;
-        this.floodgate = FloodgateApi.getInstance();
+        this.floodgate = floodgate;
     }
 
     @Override
@@ -39,12 +43,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                                 ExchangeCatalog.XP,
                                 selectionHandler,
                                 () -> open(player, selectionHandler));
-                        case 1 -> openOptions(
-                                player,
-                                "資源交換",
-                                ExchangeCatalog.RESOURCES,
-                                selectionHandler,
-                                () -> open(player, selectionHandler));
+                        case 1 -> openResourceGroups(player, selectionHandler);
                         case 2 -> openOptions(
                                 player,
                                 "エメラルド交換",
@@ -60,6 +59,37 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 }))
                 .build();
         return floodgate.sendForm(player.getUniqueId(), form);
+    }
+
+    private void openResourceGroups(
+            Player player, Consumer<ExchangeSelection> selectionHandler) {
+        if (!player.isOnline()) {
+            return;
+        }
+        var builder = SimpleForm.builder()
+                .title("資源交換")
+                .content("ほしい資源を選んでください。次に個数と必要サーバーXPを選べます。");
+        ExchangeCatalog.RESOURCE_GROUPS.forEach(group -> builder.button(
+                group.itemName() + "\n" + group.amountsLabel()));
+        SimpleForm form = builder
+                .button("戻る")
+                .validResultHandler(response -> runOnMain(() -> {
+                    int selected = response.clickedButtonId();
+                    if (selected >= 0 && selected < ExchangeCatalog.RESOURCE_GROUPS.size()) {
+                        ExchangeCatalog.ResourceGroup group =
+                                ExchangeCatalog.RESOURCE_GROUPS.get(selected);
+                        openOptions(
+                                player,
+                                group.itemName() + "へ交換",
+                                group.options(),
+                                selectionHandler,
+                                () -> openResourceGroups(player, selectionHandler));
+                    } else {
+                        open(player, selectionHandler);
+                    }
+                }))
+                .build();
+        sendFormOrFallback(player, form);
     }
 
     private void openBuybackMaterials(

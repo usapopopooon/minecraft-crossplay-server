@@ -26,6 +26,53 @@ final class ExchangeCommandTest {
             UUID.fromString("11111111-1111-4111-8111-111111111111");
 
     @Test
+    void gunpowderRatesMatchConfiguredOffers() {
+        assertEquals(
+                List.of(
+                        new ExchangeSelection(
+                                ExchangeKind.RESOURCE,
+                                "minecraft:gunpowder",
+                                8,
+                                100,
+                                8,
+                                "サーバーXP 100 → 火薬 x8"),
+                        new ExchangeSelection(
+                                ExchangeKind.RESOURCE,
+                                "minecraft:gunpowder",
+                                32,
+                                360,
+                                32,
+                                "サーバーXP 360 → 火薬 x32"),
+                        new ExchangeSelection(
+                                ExchangeKind.RESOURCE,
+                                "minecraft:gunpowder",
+                                64,
+                                150,
+                                64,
+                                "サーバーXP 150 → 火薬 x64")),
+                ExchangeCatalog.RESOURCES.stream()
+                        .filter(selection -> selection.target().equals("minecraft:gunpowder"))
+                        .toList());
+    }
+
+    @Test
+    void resourceGroupsKeepEveryOfferInAReadableItemFirstOrder() {
+        assertEquals(
+                List.of("エメラルド", "火薬", "ダイヤモンド"),
+                ExchangeCatalog.RESOURCE_GROUPS.stream()
+                        .map(ExchangeCatalog.ResourceGroup::itemName)
+                        .toList());
+        assertEquals(
+                ExchangeCatalog.RESOURCES,
+                ExchangeCatalog.RESOURCE_GROUPS.stream()
+                        .flatMap(group -> group.options().stream())
+                        .toList());
+        assertTrue(ExchangeCatalog.RESOURCE_GROUPS.stream()
+                .allMatch(group -> group.options().stream()
+                        .allMatch(selection -> selection.target().equals(group.target()))));
+    }
+
+    @Test
     void directCommandsMapToExactAuthoritativeOffers() {
         List<ExchangeSelection> requests = new ArrayList<>();
         AtomicLong now = new AtomicLong(10_000);
@@ -40,6 +87,8 @@ final class ExchangeCommandTest {
         invoke(command, player, "resource", "diamond", "3");
         now.addAndGet(2_000);
         invoke(command, player, "resource", "emerald", "16");
+        now.addAndGet(2_000);
+        invoke(command, player, "resource", "gunpowder", "64");
         now.addAndGet(2_000);
         invoke(command, player, "emerald-diamond", "64");
         now.addAndGet(2_000);
@@ -68,6 +117,13 @@ final class ExchangeCommandTest {
                                 360,
                                 16,
                                 "サーバーXP 360 → エメラルド x16"),
+                        new ExchangeSelection(
+                                ExchangeKind.RESOURCE,
+                                "minecraft:gunpowder",
+                                64,
+                                150,
+                                64,
+                                "サーバーXP 150 → 火薬 x64"),
                         new ExchangeSelection(
                                 ExchangeKind.EMERALD_DIAMOND,
                                 "minecraft:diamond",
@@ -180,6 +236,13 @@ final class ExchangeCommandTest {
                         null,
                         "exchange",
                         new String[] {"resource", "diamond", ""}));
+        assertEquals(
+                List.of("8", "32", "64"),
+                command.onTabComplete(
+                        player(new ArrayList<>()),
+                        null,
+                        "exchange",
+                        new String[] {"resource", "gunpowder", ""}));
     }
 
     @Test

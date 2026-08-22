@@ -51,14 +51,9 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
         add(inventory, actions, 11, icon(
                 Material.EMERALD,
                 "資源へ交換",
-                "サーバーXPを資源へ交換します。"),
-                () -> openOptions(
-                        player,
-                        "資源交換",
-                        ExchangeCatalog.RESOURCES,
-                        Material.EMERALD,
-                        selectionHandler,
-                        () -> open(player, selectionHandler)));
+                "サーバーXPを資源へ交換します。",
+                "資源の種類を選んでから、個数と必要XPを確認できます。"),
+                () -> openResourceGroups(player, selectionHandler));
         add(inventory, actions, 12, icon(
                 Material.DIAMOND,
                 "手持ちエメラルドを交換",
@@ -86,6 +81,32 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
         add(inventory, actions, 16, icon(Material.BARRIER, "閉じる"), player::closeInventory);
         player.openInventory(inventory);
         return true;
+    }
+
+    private void openResourceGroups(
+            Player player, Consumer<ExchangeSelection> selectionHandler) {
+        Map<Integer, Runnable> actions = new LinkedHashMap<>();
+        Inventory inventory = create(player, "資源交換", actions);
+        int[] slots = {11, 13, 15};
+        for (int index = 0; index < ExchangeCatalog.RESOURCE_GROUPS.size(); index++) {
+            ExchangeCatalog.ResourceGroup group = ExchangeCatalog.RESOURCE_GROUPS.get(index);
+            Material material = resourceMaterial(group.target());
+            add(inventory, actions, slots[index], icon(
+                    material,
+                    group.itemName(),
+                    "個数と必要サーバーXPを選びます。",
+                    "交換候補: " + group.amountsLabel()),
+                    () -> openOptions(
+                            player,
+                            group.itemName() + "へ交換",
+                            group.options(),
+                            material,
+                            selectionHandler,
+                            () -> openResourceGroups(player, selectionHandler)));
+        }
+        add(inventory, actions, 22, icon(Material.ARROW, "戻る"),
+                () -> open(player, selectionHandler));
+        player.openInventory(inventory);
     }
 
     private void openBuybackMaterials(
@@ -282,7 +303,17 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
         return switch (selection.target()) {
             case "minecraft:diamond" -> Material.DIAMOND;
             case "minecraft:emerald" -> Material.EMERALD;
+            case "minecraft:gunpowder" -> Material.GUNPOWDER;
             default -> fallback;
+        };
+    }
+
+    private static Material resourceMaterial(String target) {
+        return switch (target) {
+            case "minecraft:diamond" -> Material.DIAMOND;
+            case "minecraft:emerald" -> Material.EMERALD;
+            case "minecraft:gunpowder" -> Material.GUNPOWDER;
+            default -> Material.BARRIER;
         };
     }
 
