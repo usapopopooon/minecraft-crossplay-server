@@ -44,7 +44,7 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
         entries.put(12, JavaChestMenus.action(
                 Material.CRAFTING_TABLE,
                 "依頼を作る",
-                List.of("依頼品をメインハンドに持ってください。"),
+                List.of("通常アイテムかエンチャント本を", "メインハンドに持ってください。"),
                 () -> openCreate(player, actionHandler)));
         entries.put(14, JavaChestMenus.action(
                 Material.ENDER_CHEST,
@@ -87,9 +87,13 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
 
     private void openCreate(Player player, Consumer<QuestFormAction> actionHandler) {
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!QuestItems.isSimpleStack(held)) {
-            player.sendMessage("依頼品は、名前・エンチャント等のない通常のスタック可能アイテムを手に持ってください。");
+        if (!QuestItems.isSupportedRequest(held)) {
+            player.sendMessage(QuestItems.requestRejectionMessage(held));
             open(player, actionHandler);
+            return;
+        }
+        if (QuestItems.hasFixedRequestCount(held)) {
+            openFulfillmentHours(player, held, 1, actionHandler);
             return;
         }
         openRequestedCount(player, held, actionHandler);
@@ -103,7 +107,7 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
         menus.openNumberInput(
                 player,
                 "依頼する個数",
-                MarketItems.displayName(sample) + " の依頼数",
+                MarketItems.questDisplayName(sample) + " の依頼数",
                 1,
                 sample.getMaxStackSize(),
                 inputItemIcon(sample, 0),
@@ -121,7 +125,7 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
         menus.openNumberInput(
                 player,
                 "納品期限",
-                MarketItems.displayName(sample) + " x" + count + " / 受注後の納品期限（時間）",
+                MarketItems.questDisplayName(sample) + " x" + count + " / 受注後の納品期限（時間）",
                 1,
                 72,
                 inputItemIcon(sample, count),
@@ -136,7 +140,13 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
                     actionHandler.accept(
                             new QuestFormAction(QuestFormAction.Kind.CREATE, 0, count, hours));
                 },
-                () -> openRequestedCount(player, sample, actionHandler));
+                () -> {
+                    if (QuestItems.hasFixedRequestCount(sample)) {
+                        open(player, actionHandler);
+                    } else {
+                        openRequestedCount(player, sample, actionHandler);
+                    }
+                });
     }
 
     private void openPublicationConfirmation(
@@ -149,8 +159,8 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
             return;
         }
         ItemStack reward = player.getInventory().getItemInMainHand();
-        if (!QuestItems.isSimpleStack(reward)) {
-            player.sendMessage("報酬にする通常アイテムのスタックをメインハンドへ持ってください。");
+        if (!QuestItems.isSupportedReward(reward)) {
+            player.sendMessage(QuestItems.rewardRejectionMessage(reward));
             open(player, actionHandler);
             return;
         }
@@ -163,7 +173,7 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
                         "受注後の期限: " + draft.fulfillmentHours() + "時間")));
         entries.put(15, JavaChestMenus.display(
                 rewardIcon(reward),
-                List.of("報酬: " + MarketItems.displayName(reward) + " x" + reward.getAmount())));
+                List.of("報酬: " + MarketItems.questDisplayName(reward) + " x" + reward.getAmount())));
         entries.put(22, JavaChestMenus.terminalAction(
                 Material.LIME_CONCRETE,
                 "報酬を預けて公開",
@@ -534,21 +544,31 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
 
     private static ItemStack requestedIcon(QuestListing quest) {
         return requestedIcon(
-                quest.requestedItemId(), quest.requestedItemName(), quest.requestedCount());
+                quest.requestedItem(),
+                quest.requestedItemId(),
+                quest.requestedItemName(),
+                quest.requestedCount());
     }
 
     private static ItemStack requestedIcon(QuestDraft draft) {
         return requestedIcon(
-                draft.requestedItemId(), draft.requestedItemName(), draft.requestedCount());
+                draft.requestedItem(),
+                draft.requestedItemId(),
+                draft.requestedItemName(),
+                draft.requestedCount());
     }
 
-    private static ItemStack requestedIcon(String itemId, String itemName, int count) {
+    private static ItemStack requestedIcon(
+            ItemStack requestedItem, String itemId, String itemName, int count) {
         Material material = Material.matchMaterial(itemId);
         if (material == null || material.isAir()) {
             return JavaChestMenus.icon(
                     Material.BARRIER, itemName + " x" + count, List.of("アイテム表示を取得できません。"));
         }
-        ItemStack icon = new ItemStack(material, Math.min(count, material.getMaxStackSize()));
+        ItemStack icon = requestedItem == null
+                ? new ItemStack(material, Math.min(count, material.getMaxStackSize()))
+                : requestedItem.clone();
+        icon.setAmount(Math.min(count, icon.getMaxStackSize()));
         ItemMeta meta = icon.getItemMeta();
         meta.displayName(net.kyori.adventure.text.Component.text(itemName + " x" + count)
                 .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
@@ -561,7 +581,7 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
         if (count > 0) {
             icon.setAmount(Math.min(count, icon.getMaxStackSize()));
         }
-        String label = MarketItems.displayName(item) + (count > 0 ? " x" + count : "");
+        String label = MarketItems.questDisplayName(item) + (count > 0 ? " x" + count : "");
         ItemMeta meta = icon.getItemMeta();
         meta.displayName(net.kyori.adventure.text.Component.text(label)
                 .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
@@ -572,7 +592,7 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
     private static ItemStack rewardIcon(ItemStack reward) {
         ItemStack icon = reward.clone();
         ItemMeta meta = icon.getItemMeta();
-        meta.displayName(net.kyori.adventure.text.Component.text(MarketItems.displayName(icon))
+        meta.displayName(net.kyori.adventure.text.Component.text(MarketItems.questDisplayName(icon))
                 .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
         icon.setItemMeta(meta);
         return icon;

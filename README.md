@@ -97,12 +97,20 @@ Japanese translations. This covers data-dependent vanilla names while
 preserving custom item names. When that effective name differs from the item's
 underlying type, recognized enchantment-description names append the translated
 type in parentheses, for example
-`効率Ⅴ耐久力Ⅲ修繕付きの斧（ダイヤモンドの斧）`. Player-assigned names stay
-exactly as entered. Every market surface uses the same name.
+`効率Ⅴ耐久力Ⅲ修繕付きの斧（ダイヤモンドの斧）`. Player-assigned base names
+stay intact. Enchanted books append their stored enchantment names and levels;
+books with five or more enchantments show the first four and the number of
+remaining types. Every market surface uses the same name.
 
-Linked players can create item-delivery quests with `/quest`. The first release
-accepts only ordinary stackable items without custom names, enchantments, or
-other metadata, and both the requested amount and reward must fit in one stack.
+Linked players can create item-delivery quests with `/quest`. Quests accept
+ordinary stackable items without custom names or other metadata, plus enchanted
+books. An enchanted book used as the requested item must match the stored
+enchantment types, levels, and visible custom name at submission; hidden anvil
+repair history is ignored. Its requested count is fixed at one, so Java and
+Bedrock creation screens skip the count input for books. Quest displays include
+every stored enchantment instead of abbreviating books with five or more types.
+Enchanted books can also be escrowed as rewards without losing their metadata.
+Both the requested amount and reward must fit in one stack.
 Creation is a two-step escrow flow: hold a sample of the requested item and run
 `/quest create <count> <hours>`, then hold the entire reward stack and run
 `/quest confirm`. `/quest discard` removes a stale draft without consuming an item.

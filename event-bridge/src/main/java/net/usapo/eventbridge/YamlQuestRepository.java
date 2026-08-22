@@ -47,6 +47,32 @@ final class YamlQuestRepository implements QuestRepository {
             ItemStack reward,
             long nowMillis)
             throws IOException {
+        return create(
+                eventId,
+                ownerId,
+                ownerName,
+                requestedItemId,
+                requestedItemName,
+                null,
+                requestedCount,
+                fulfillmentHours,
+                reward,
+                nowMillis);
+    }
+
+    @Override
+    public synchronized QuestListing create(
+            UUID eventId,
+            UUID ownerId,
+            String ownerName,
+            String requestedItemId,
+            String requestedItemName,
+            ItemStack requestedItem,
+            int requestedCount,
+            int fulfillmentHours,
+            ItemStack reward,
+            long nowMillis)
+            throws IOException {
         QuestListing existing = quests.values().stream()
                 .filter(quest -> quest.eventId().equals(eventId))
                 .findFirst()
@@ -56,6 +82,7 @@ final class YamlQuestRepository implements QuestRepository {
                     || !existing.ownerName().equals(ownerName)
                     || !existing.requestedItemId().equals(requestedItemId)
                     || !existing.requestedItemName().equals(requestedItemName)
+                    || !java.util.Objects.equals(existing.requestedItem(), requestedItem)
                     || existing.requestedCount() != requestedCount
                     || existing.fulfillmentHours() != fulfillmentHours
                     || !existing.reward().equals(reward)) {
@@ -71,6 +98,7 @@ final class YamlQuestRepository implements QuestRepository {
                 ownerName,
                 requestedItemId,
                 requestedItemName,
+                requestedItem,
                 requestedCount,
                 fulfillmentHours,
                 reward,
@@ -310,7 +338,7 @@ final class YamlQuestRepository implements QuestRepository {
         if (current.status() != QuestListing.Status.ACCEPTED
                 || !workerId.equals(current.workerId())
                 || current.acceptedDeadlineMillis() <= nowMillis
-                || !current.requestedItemId().equals(submittedItem.getType().getKey().toString())
+                || !QuestItems.matchesRequested(current, submittedItem)
                 || submittedItem.getAmount() != current.requestedCount()) {
             throw new IllegalStateException("quest submission does not match");
         }
@@ -694,6 +722,7 @@ final class YamlQuestRepository implements QuestRepository {
                 yaml.getString(path + "owner-name", ""),
                 yaml.getString(path + "requested-item-id", ""),
                 yaml.getString(path + "requested-item-name", ""),
+                yaml.getItemStack(path + "requested-item"),
                 yaml.getInt(path + "requested-count"),
                 yaml.getInt(path + "fulfillment-hours"),
                 reward,
@@ -736,6 +765,7 @@ final class YamlQuestRepository implements QuestRepository {
             yaml.set(path + "owner-name", quest.ownerName());
             yaml.set(path + "requested-item-id", quest.requestedItemId());
             yaml.set(path + "requested-item-name", quest.requestedItemName());
+            yaml.set(path + "requested-item", quest.requestedItem());
             yaml.set(path + "requested-count", quest.requestedCount());
             yaml.set(path + "fulfillment-hours", quest.fulfillmentHours());
             yaml.set(path + "reward", quest.reward());
@@ -806,6 +836,7 @@ final class YamlQuestRepository implements QuestRepository {
                 current.ownerName(),
                 current.requestedItemId(),
                 current.requestedItemName(),
+                current.requestedItem(),
                 current.requestedCount(),
                 current.fulfillmentHours(),
                 current.reward(),

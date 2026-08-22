@@ -13,7 +13,7 @@ record PendingQuestReward(UUID eventId, QuestDraft draft, ItemStack reward) {
         Objects.requireNonNull(eventId, "eventId");
         Objects.requireNonNull(draft, "draft");
         Objects.requireNonNull(reward, "reward");
-        if (!QuestItems.isSimpleStack(reward)) {
+        if (!QuestItems.isSupportedReward(reward)) {
             throw new IllegalArgumentException("invalid quest reward");
         }
         reward = reward.clone();

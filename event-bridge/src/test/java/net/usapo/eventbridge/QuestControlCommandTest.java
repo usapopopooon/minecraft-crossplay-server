@@ -175,6 +175,8 @@ final class QuestControlCommandTest {
         when(item.clone()).thenReturn(item);
         when(item.getType()).thenReturn(material);
         when(item.getAmount()).thenReturn(amount);
+        when(item.getMaxStackSize()).thenReturn(64);
+        when(item.hasItemMeta()).thenReturn(false);
         when(item.serialize()).thenReturn(Map.of("type", key, "amount", amount));
         return item;
     }

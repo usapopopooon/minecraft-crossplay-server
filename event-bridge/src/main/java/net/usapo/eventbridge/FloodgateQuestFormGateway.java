@@ -49,7 +49,8 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .get(draftKey, PersistentDataType.STRING);
         QuestDraft draft = decodeDraft(encodedDraft);
         int claims = repository.pendingClaims(player.getUniqueId()).size();
-        String content = "アイテム納品を依頼・受注できます。報酬と納品物は安全な受取箱へ入ります。"
+        String content = "通常アイテムやエンチャント本の納品を依頼・受注できます。"
+                + "報酬と納品物は安全な受取箱へ入ります。"
                 + "\n受取箱: " + claims + "件";
         if (draft != null) {
             content += "\n\n公開待ち: " + draft.requestedItemName() + " x"
@@ -162,18 +163,17 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
 
     private void openCreate(Player player, Consumer<QuestFormAction> actionHandler) {
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!QuestItems.isSimpleStack(held)) {
+        if (!QuestItems.isSupportedRequest(held)) {
             openInfo(
                     player,
                     "納品依頼を作る",
-                    "依頼品は、名前・エンチャント等のない通常のスタック可能アイテムを"
-                            + "メインハンドに持ってください。",
+                    QuestItems.requestRejectionMessage(held),
                     () -> open(player, actionHandler));
             return;
         }
         ItemStack shownItem = held.clone();
         CustomForm form = creationForm(
-                MarketItems.displayName(held),
+                MarketItems.questDisplayName(held),
                 held.getMaxStackSize(),
                 action -> runOnMain(() -> {
                     if (!shownItem.equals(player.getInventory().getItemInMainHand())) {
@@ -197,16 +197,26 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
             throw new IllegalArgumentException("maximumCount must be positive");
         }
         int defaultCount = Math.min(32, maximumCount);
-        return CustomForm.builder()
-                .title("納品依頼を作る")
+        var builder = CustomForm.builder().title("納品依頼を作る");
+        if (maximumCount == 1) {
+            return builder
+                    .label(itemName + " x1（エンチャント本は1冊固定）")
+                    .slider("受注後の納品期限（時間）", 1, 72, 1, 24)
+                    .validResultHandler(response -> actionHandler.accept(new QuestFormAction(
+                            QuestFormAction.Kind.CREATE,
+                            0,
+                            1,
+                            Math.round(response.asSlider(1)))))
+                    .build();
+        }
+        return builder
                 .slider(itemName + " の依頼数（1スタック以内）", 1, maximumCount, 1, defaultCount)
                 .slider("受注後の納品期限（時間）", 1, 72, 1, 24)
-                .validResultHandler(response -> {
-                    int count = Math.round(response.asSlider(0));
-                    int hours = Math.round(response.asSlider(1));
-                    actionHandler.accept(new QuestFormAction(
-                            QuestFormAction.Kind.CREATE, 0, count, hours));
-                })
+                .validResultHandler(response -> actionHandler.accept(new QuestFormAction(
+                        QuestFormAction.Kind.CREATE,
+                        0,
+                        Math.round(response.asSlider(0)),
+                        Math.round(response.asSlider(1)))))
                 .build();
     }
 
@@ -223,11 +233,11 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
             return;
         }
         ItemStack reward = player.getInventory().getItemInMainHand();
-        if (!QuestItems.isSimpleStack(reward)) {
+        if (!QuestItems.isSupportedReward(reward)) {
             openInfo(
                     player,
                     "公開内容の確認",
-                    "報酬にする通常アイテムのスタックをメインハンドへ持ってください。",
+                    QuestItems.rewardRejectionMessage(reward),
                     () -> open(player, actionHandler));
             return;
         }
@@ -250,7 +260,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
     static String publicationConfirmation(QuestDraft draft, ItemStack reward) {
         return "依頼品: " + draft.requestedItemName() + " x" + draft.requestedCount()
                 + "\n受注後の期限: " + draft.fulfillmentHours() + "時間"
-                + "\n報酬: " + MarketItems.displayName(reward) + " x" + reward.getAmount()
+                + "\n報酬: " + MarketItems.questDisplayName(reward) + " x" + reward.getAmount()
                 + "\n\nこの報酬スタックを預けて公開しますか？";
     }
 

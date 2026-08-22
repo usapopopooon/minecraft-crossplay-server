@@ -11,6 +11,7 @@ record QuestListing(
         String ownerName,
         String requestedItemId,
         String requestedItemName,
+        ItemStack requestedItem,
         int requestedCount,
         int fulfillmentHours,
         ItemStack reward,
@@ -50,6 +51,14 @@ record QuestListing(
                 || openExpiresAtMillis <= createdAtMillis) {
             throw new IllegalArgumentException("invalid quest listing");
         }
+        if (requestedItem != null) {
+            if (!QuestItems.isSupportedRequest(requestedItem)
+                    || !requestedItemId.equals(requestedItem.getType().getKey().toString())) {
+                throw new IllegalArgumentException("invalid requested quest item");
+            }
+            requestedItem = requestedItem.clone();
+            requestedItem.setAmount(1);
+        }
         boolean hasWorker = workerId != null && workerName != null && !workerName.isBlank();
         if ((status == Status.ACCEPTED || status == Status.COMPLETED) != hasWorker) {
             throw new IllegalArgumentException("invalid quest worker state");
@@ -59,6 +68,48 @@ record QuestListing(
             throw new IllegalArgumentException("invalid quest deadline state");
         }
         reward = reward.clone();
+    }
+
+    QuestListing(
+            long id,
+            UUID eventId,
+            UUID ownerId,
+            String ownerName,
+            String requestedItemId,
+            String requestedItemName,
+            int requestedCount,
+            int fulfillmentHours,
+            ItemStack reward,
+            Status status,
+            UUID workerId,
+            String workerName,
+            long createdAtMillis,
+            long openExpiresAtMillis,
+            long acceptedDeadlineMillis,
+            UUID lastTransitionId) {
+        this(
+                id,
+                eventId,
+                ownerId,
+                ownerName,
+                requestedItemId,
+                requestedItemName,
+                null,
+                requestedCount,
+                fulfillmentHours,
+                reward,
+                status,
+                workerId,
+                workerName,
+                createdAtMillis,
+                openExpiresAtMillis,
+                acceptedDeadlineMillis,
+                lastTransitionId);
+    }
+
+    @Override
+    public ItemStack requestedItem() {
+        return requestedItem == null ? null : requestedItem.clone();
     }
 
     @Override
@@ -71,6 +122,6 @@ record QuestListing(
     }
 
     String rewardLabel() {
-        return MarketItems.displayName(reward) + " x" + reward.getAmount();
+        return MarketItems.questDisplayName(reward) + " x" + reward.getAmount();
     }
 }

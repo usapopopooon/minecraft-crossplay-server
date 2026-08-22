@@ -5,10 +5,12 @@ import java.util.Base64;
 import java.util.Objects;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 
 record QuestDraft(
         String requestedItemId,
         String requestedItemName,
+        ItemStack requestedItem,
         int requestedCount,
         int fulfillmentHours) {
     QuestDraft {
@@ -21,12 +23,34 @@ record QuestDraft(
                 || fulfillmentHours > 72) {
             throw new IllegalArgumentException("invalid quest draft");
         }
+        if (requestedItem != null) {
+            if (!QuestItems.isSupportedRequest(requestedItem)
+                    || !requestedItemId.equals(requestedItem.getType().getKey().toString())) {
+                throw new IllegalArgumentException("invalid requested quest item");
+            }
+            requestedItem = requestedItem.clone();
+            requestedItem.setAmount(1);
+        }
+    }
+
+    QuestDraft(
+            String requestedItemId,
+            String requestedItemName,
+            int requestedCount,
+            int fulfillmentHours) {
+        this(requestedItemId, requestedItemName, null, requestedCount, fulfillmentHours);
+    }
+
+    @Override
+    public ItemStack requestedItem() {
+        return requestedItem == null ? null : requestedItem.clone();
     }
 
     String encode() {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("requested-item-id", requestedItemId);
         yaml.set("requested-item-name", requestedItemName);
+        yaml.set("requested-item", requestedItem);
         yaml.set("requested-count", requestedCount);
         yaml.set("fulfillment-hours", fulfillmentHours);
         return Base64.getEncoder()
@@ -41,6 +65,7 @@ record QuestDraft(
             return new QuestDraft(
                     yaml.getString("requested-item-id", ""),
                     yaml.getString("requested-item-name", ""),
+                    yaml.getItemStack("requested-item"),
                     yaml.getInt("requested-count"),
                     yaml.getInt("fulfillment-hours"));
         } catch (IllegalArgumentException | InvalidConfigurationException error) {

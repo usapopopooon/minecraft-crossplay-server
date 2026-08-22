@@ -12,7 +12,7 @@ record PendingQuestSubmission(UUID transitionId, long questId, ItemStack item) {
     PendingQuestSubmission {
         Objects.requireNonNull(transitionId, "transitionId");
         Objects.requireNonNull(item, "item");
-        if (questId <= 0 || !QuestItems.isSimpleStack(item)) {
+        if (questId <= 0 || !QuestItems.isSupportedRequest(item)) {
             throw new IllegalArgumentException("invalid pending quest submission");
         }
         item = item.clone();

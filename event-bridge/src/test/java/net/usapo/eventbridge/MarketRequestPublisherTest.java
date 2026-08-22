@@ -19,6 +19,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.junit.jupiter.api.Test;
 
 final class MarketRequestPublisherTest {
@@ -120,6 +121,42 @@ final class MarketRequestPublisherTest {
         assertEquals("夜伐り", decode(fields[5]));
     }
 
+    @Test
+    void publishesStoredEnchantmentInEnchantedBookName() {
+        List<String> messages = new ArrayList<>();
+        UUID eventId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+        MarketRequestPublisher publisher = new MarketRequestPublisher(
+                messages::add,
+                Clock.fixed(Instant.parse("2026-08-18T00:00:00Z"), ZoneOffset.UTC),
+                UUID::randomUUID);
+        Material material = material("enchanted_book");
+        Keyed mending = () -> NamespacedKey.minecraft("mending");
+        EnchantmentStorageMeta meta = mock(EnchantmentStorageMeta.class);
+        stubStoredEnchantments(meta, Map.of(mending, 1));
+        ItemStack book = item(
+                material,
+                1,
+                Component.translatable("item.minecraft.enchanted_book"));
+        when(book.getItemMeta()).thenReturn(meta);
+        MarketListing listing = new MarketListing(
+                19,
+                eventId,
+                UUID.fromString("22222222-2222-4222-8222-222222222222"),
+                ".Yuki1991",
+                2_000,
+                book,
+                MarketListing.Status.ACTIVE,
+                null,
+                null);
+
+        publisher.publishListing(listing);
+
+        String event = messages.getFirst();
+        String[] fields = event.substring(MarketRequestPublisher.LISTING_PREFIX.length())
+                .split("\\|");
+        assertEquals("エンチャントの本（修繕）", decode(fields[5]));
+    }
+
     private static ItemStack item(Material material, int amount) {
         boolean block = material.isBlock();
         String materialKey = material.getKey().getKey();
@@ -166,6 +203,12 @@ final class MarketRequestPublisherTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void stubEnchantments(ItemStack item, Map<Keyed, Integer> enchantments) {
         when(item.getEnchantments()).thenReturn((Map) enchantments);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void stubStoredEnchantments(
+            EnchantmentStorageMeta meta, Map<Keyed, Integer> enchantments) {
+        when(meta.getStoredEnchants()).thenReturn((Map) enchantments);
     }
 
     @SuppressWarnings("deprecation")

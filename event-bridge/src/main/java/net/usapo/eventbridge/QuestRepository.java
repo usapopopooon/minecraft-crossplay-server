@@ -19,6 +19,19 @@ interface QuestRepository {
             long nowMillis)
             throws IOException;
 
+    QuestListing create(
+            UUID eventId,
+            UUID ownerId,
+            String ownerName,
+            String requestedItemId,
+            String requestedItemName,
+            ItemStack requestedItem,
+            int requestedCount,
+            int fulfillmentHours,
+            ItemStack reward,
+            long nowMillis)
+            throws IOException;
+
     Optional<QuestListing> find(long questId);
 
     Optional<QuestListing> findByEventId(UUID eventId);

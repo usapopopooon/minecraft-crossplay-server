@@ -1,6 +1,7 @@
 package net.usapo.eventbridge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -18,13 +19,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.Keyed;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.UnsafeValues;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -250,6 +254,102 @@ final class QuestActionsTest {
     }
 
     @Test
+    void commandPersistsEnchantedBooksAsExactRequestsAndRewards() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "enchanted-books.yml"));
+        QuestActions actions = new QuestActions(
+                repository,
+                (changed, kind) -> {},
+                key("pending_submission"),
+                changed -> {});
+        ItemStack requested = enchantedBook("mending", 1);
+        ItemStack reward = enchantedBook("unbreaking", 3);
+        AtomicReference<ItemStack> hand = new AtomicReference<>(requested);
+        List<String> messages = new ArrayList<>();
+        Player owner = player(
+                "Owner",
+                OWNER,
+                hand,
+                new AtomicInteger(),
+                new ItemStack[36],
+                messages);
+        QuestCommand command = new QuestCommand(
+                repository,
+                actions,
+                (target, handler) -> false,
+                key("draft"),
+                key("pending_reward"),
+                key("claim_history"));
+        UnsafeValues unsafe = mock(UnsafeValues.class);
+        when(unsafe.deserializeStack(org.mockito.ArgumentMatchers.anyMap()))
+                .thenReturn(requested);
+
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getUnsafe).thenReturn(unsafe);
+            command.onCommand(owner, null, "quest", new String[] {"create", "2", "24"});
+            assertTrue(messages.contains("エンチャント本の依頼数は1冊です。個数に1を指定してください。"));
+            assertTrue(repository.openQuests().isEmpty());
+            command.onCommand(owner, null, "quest", new String[] {"create", "1", "24"});
+            hand.set(reward);
+            command.onCommand(owner, null, "quest", new String[] {"confirm"});
+        }
+
+        QuestListing quest = repository.openQuests().getFirst();
+        assertEquals("エンチャントの本（修繕）", quest.requestedItemName());
+        assertTrue(quest.requestedItem().isSimilar(requested));
+        assertEquals("エンチャントの本（耐久力 III） x1", quest.rewardLabel());
+
+        repository.accept(quest.id(), ACCEPT, WORKER, "Worker", 2_000);
+        Player worker = player(
+                "Worker", WORKER, new AtomicReference<>(requested), new AtomicInteger());
+        QuestTransition completed = actions.submit(quest.id(), COMPLETE, worker, 3_000);
+
+        assertEquals(QuestListing.Status.COMPLETED, completed.quest().status());
+        assertClaim(repository.pendingClaims(OWNER), "enchanted_book", 1);
+        assertClaim(repository.pendingClaims(WORKER), "enchanted_book", 1);
+    }
+
+    @Test
+    void wrongEnchantedBookSubmissionExplainsTheRequiredAndHeldBooks() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "wrong-enchanted-book.yml"));
+        ItemStack mending = enchantedBook("mending", 1);
+        QuestListing quest = repository.create(
+                EVENT,
+                OWNER,
+                "Owner",
+                "minecraft:enchanted_book",
+                "エンチャントの本（修繕）",
+                mending,
+                1,
+                24,
+                item("diamond", 3),
+                1_000);
+        repository.accept(quest.id(), ACCEPT, WORKER, "Worker", 2_000);
+        QuestActions actions = new QuestActions(
+                repository,
+                (changed, kind) -> {},
+                key("pending_submission"),
+                changed -> {});
+        ItemStack unbreaking = enchantedBook("unbreaking", 3);
+        Player worker = player(
+                "Worker", WORKER, new AtomicReference<>(unbreaking), new AtomicInteger());
+
+        QuestActionException error = assertThrows(
+                QuestActionException.class,
+                () -> actions.submit(quest.id(), COMPLETE, worker, 3_000));
+
+        assertEquals("item_mismatch", error.code());
+        assertEquals(
+                "必要な本: エンチャントの本（修繕） / 手持ち: エンチャントの本（耐久力 III）。"
+                        + "エンチャントの種類・レベルと本の名前を確認してください。",
+                error.getMessage());
+        assertEquals(1, unbreaking.getAmount());
+        assertTrue(repository.pendingClaims(OWNER).isEmpty());
+        assertTrue(repository.pendingClaims(WORKER).isEmpty());
+    }
+
+    @Test
     void javaMenuIsUsedWhenBedrockFormIsUnavailableAndSharesTheActionPath()
             throws IOException {
         YamlQuestRepository repository =
@@ -396,6 +496,36 @@ final class QuestActionsTest {
                 })
                 .when(item)
                 .setAmount(org.mockito.ArgumentMatchers.anyInt());
+        return item;
+    }
+
+    @SuppressWarnings({"deprecation", "rawtypes", "unchecked"})
+    private static ItemStack enchantedBook(String enchantmentKey, int level) {
+        Material material = mock(Material.class);
+        when(material.isAir()).thenReturn(false);
+        when(material.getKey()).thenReturn(NamespacedKey.minecraft("enchanted_book"));
+        when(material.translationKey()).thenReturn("item.minecraft.enchanted_book");
+        Keyed enchantment = mock(Keyed.class);
+        when(enchantment.getKey()).thenReturn(NamespacedKey.minecraft(enchantmentKey));
+        EnchantmentStorageMeta meta = mock(EnchantmentStorageMeta.class);
+        when(meta.getStoredEnchants()).thenReturn((Map) Map.of(enchantment, level));
+        ItemStack item = mock(ItemStack.class);
+        when(item.clone()).thenReturn(item);
+        when(item.getType()).thenReturn(material);
+        when(item.getAmount()).thenReturn(1);
+        when(item.getMaxStackSize()).thenReturn(1);
+        when(item.hasItemMeta()).thenReturn(true);
+        when(item.getItemMeta()).thenReturn(meta);
+        when(item.effectiveName())
+                .thenReturn(Component.translatable("item.minecraft.enchanted_book"));
+        when(item.isSimilar(item)).thenReturn(true);
+        when(item.serialize())
+                .thenReturn(Map.of(
+                        "schema_version", 1,
+                        "type", "enchanted_book",
+                        "amount", 1,
+                        "enchantment", enchantmentKey,
+                        "level", level));
         return item;
     }
 

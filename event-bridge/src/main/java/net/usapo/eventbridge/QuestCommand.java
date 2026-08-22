@@ -139,8 +139,12 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
 
     private void createDraft(Player player, int count, int hours) {
         ItemStack sample = player.getInventory().getItemInMainHand();
-        if (!QuestItems.isSimpleStack(sample)) {
-            player.sendMessage("依頼品は、名前・エンチャント等のない通常のスタック可能アイテムを手に持ってください。");
+        if (!QuestItems.isSupportedRequest(sample)) {
+            player.sendMessage(QuestItems.requestRejectionMessage(sample));
+            return;
+        }
+        if (QuestItems.hasFixedRequestCount(sample) && count != 1) {
+            player.sendMessage("エンチャント本の依頼数は1冊です。個数に1を指定してください。");
             return;
         }
         if (count > sample.getMaxStackSize()) {
@@ -153,7 +157,8 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
         }
         QuestDraft draft = new QuestDraft(
                 sample.getType().getKey().toString(),
-                MarketItems.displayName(sample),
+                MarketItems.questDisplayName(sample),
+                sample,
                 count,
                 hours);
         player.getPersistentDataContainer()
@@ -203,8 +208,8 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!QuestItems.isSimpleStack(held)) {
-            player.sendMessage("報酬は、名前・エンチャント等のない通常のスタック可能アイテムにしてください。");
+        if (!QuestItems.isSupportedReward(held)) {
+            player.sendMessage(QuestItems.rewardRejectionMessage(held));
             return;
         }
         PendingQuestReward pending =
@@ -302,6 +307,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
                 player.getName(),
                 draft.requestedItemId(),
                 draft.requestedItemName(),
+                draft.requestedItem(),
                 draft.requestedCount(),
                 draft.fulfillmentHours(),
                 pending.reward(),
@@ -314,6 +320,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
         if (!quest.ownerId().equals(player.getUniqueId())
                 || !quest.eventId().equals(pending.eventId())
                 || !quest.requestedItemId().equals(draft.requestedItemId())
+                || !java.util.Objects.equals(quest.requestedItem(), draft.requestedItem())
                 || quest.requestedCount() != draft.requestedCount()
                 || quest.fulfillmentHours() != draft.fulfillmentHours()
                 || !quest.reward().equals(pending.reward())) {
@@ -396,7 +403,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             ClaimDelivery result = deliverClaim(player, claim);
             if (result == ClaimDelivery.NO_SPACE) {
                 ItemStack item = claim.item();
-                blocked.add(MarketItems.displayName(item) + " x" + item.getAmount());
+                blocked.add(MarketItems.questDisplayName(item) + " x" + item.getAmount());
                 continue;
             }
             if (result == ClaimDelivery.FAILED) {
@@ -610,6 +617,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
     private static void sendUsage(Player player) {
         player.sendMessage("クエスト掲示板: /quest list [ページ]");
         player.sendMessage("作成1: 依頼品を手に持ち /quest create <個数> <期限時間:1〜72>");
+        player.sendMessage("エンチャント本の依頼数は1冊固定です。種類・レベル・名前が同じ本を納品します。");
         player.sendMessage("作成2: 報酬スタックを手に持ち /quest confirm");
         player.sendMessage("下書きを破棄: /quest discard");
         player.sendMessage("自分の依頼・受注・受取箱: /quest mine");

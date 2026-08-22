@@ -157,7 +157,7 @@ final class QuestActions {
         if (!QuestItems.matchesRequested(quest, held)) {
             throw failure(
                     "item_mismatch",
-                    "メインハンドに " + quest.requestedLabel() + " 以上をまとめて持ってください。");
+                    QuestItems.submissionMismatchMessage(quest, held));
         }
         ItemStack submitted = QuestItems.removeRequested(held, quest.requestedCount());
         PendingQuestSubmission pending =

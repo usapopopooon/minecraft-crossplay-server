@@ -97,6 +97,24 @@ final class FloodgateQuestFormGatewayTest {
     }
 
     @Test
+    void creationFormForAnEnchantedBookOmitsTheCountSlider() throws Exception {
+        AtomicReference<QuestFormAction> selected = new AtomicReference<>();
+        CustomForm form = FloodgateQuestFormGateway.creationForm(
+                "エンチャントの本（修繕）", 1, selected::set);
+
+        assertEquals(2, form.content().size());
+        SliderComponent hours = assertInstanceOf(SliderComponent.class, form.content().get(1));
+        assertEquals("受注後の納品期限（時間）", hours.text());
+        CustomFormResponse response = mock(CustomFormResponse.class);
+        when(response.asSlider(1)).thenReturn(48f);
+        formImplementation(form).callResultHandler(ValidFormResponseResult.of(response));
+
+        assertEquals(
+                new QuestFormAction(QuestFormAction.Kind.CREATE, 0, 1, 48),
+                selected.get());
+    }
+
+    @Test
     void creationFormRejectsAnInvalidStackLimit() {
         assertThrows(
                 IllegalArgumentException.class,

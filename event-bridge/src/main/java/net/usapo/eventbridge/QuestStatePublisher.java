@@ -55,7 +55,7 @@ final class QuestStatePublisher implements QuestStateSink {
                 + "|"
                 + encode(quest.reward().getType().getKey().toString())
                 + "|"
-                + encode(MarketItems.displayName(quest.reward()))
+                + encode(MarketItems.questDisplayName(quest.reward()))
                 + "|"
                 + quest.reward().getAmount()
                 + "|"

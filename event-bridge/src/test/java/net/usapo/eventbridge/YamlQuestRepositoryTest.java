@@ -2,6 +2,7 @@ package net.usapo.eventbridge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -16,6 +17,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.UnsafeValues;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
@@ -111,6 +113,47 @@ final class YamlQuestRepositoryTest {
     }
 
     @Test
+    void completionRejectsADifferentEnchantedBook() throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "enchanted-book.yml"));
+        ItemStack mending = enchantedBook("mending", 1);
+        ItemStack unbreaking = enchantedBook("unbreaking", 3);
+        when(mending.isSimilar(mending)).thenReturn(true);
+        when(mending.isSimilar(unbreaking)).thenReturn(false);
+        QuestListing created = repository.create(
+                EVENT,
+                OWNER,
+                "Owner",
+                "minecraft:enchanted_book",
+                "エンチャントの本（修繕）",
+                mending,
+                1,
+                24,
+                item("diamond", 3),
+                1_000);
+        UnsafeValues unsafe = mock(UnsafeValues.class);
+        when(unsafe.deserializeStack(org.mockito.ArgumentMatchers.anyMap()))
+                .thenAnswer(invocation -> {
+                    java.util.Map<String, Object> serialized = invocation.getArgument(0);
+                    return "enchanted_book".equals(serialized.get("type"))
+                            ? mending
+                            : item("diamond", 3);
+                });
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getUnsafe).thenReturn(unsafe);
+            repository = new YamlQuestRepository(new File(directory, "enchanted-book.yml"));
+        }
+        repository.accept(created.id(), ACCEPT, WORKER, "Worker", 2_000);
+        YamlQuestRepository recovered = repository;
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> recovered.complete(created.id(), COMPLETE, WORKER, unbreaking, 3_000));
+        assertTrue(repository.pendingClaims(OWNER).isEmpty());
+        assertTrue(repository.pendingClaims(WORKER).isEmpty());
+    }
+
+    @Test
     void openExpiryReturnsRewardAndAcceptedExpiryReopens() throws IOException {
         File file = new File(directory, "expiry.yml");
         YamlQuestRepository repository = new YamlQuestRepository(file);
@@ -191,9 +234,35 @@ final class YamlQuestRepositoryTest {
         when(item.clone()).thenReturn(item);
         when(item.getType()).thenReturn(material);
         when(item.getAmount()).thenReturn(amount);
+        when(item.getMaxStackSize()).thenReturn(64);
+        when(item.hasItemMeta()).thenReturn(false);
         when(item.serialize())
                 .thenReturn(java.util.Map.of(
                         "schema_version", 1, "type", key, "amount", amount));
+        return item;
+    }
+
+    @SuppressWarnings({"deprecation", "rawtypes", "unchecked"})
+    private static ItemStack enchantedBook(String enchantmentKey, int level) {
+        Material material = mock(Material.class);
+        when(material.isAir()).thenReturn(false);
+        when(material.getKey()).thenReturn(NamespacedKey.minecraft("enchanted_book"));
+        org.bukkit.Keyed enchantment = mock(org.bukkit.Keyed.class);
+        when(enchantment.getKey()).thenReturn(NamespacedKey.minecraft(enchantmentKey));
+        EnchantmentStorageMeta meta = mock(EnchantmentStorageMeta.class);
+        when(meta.getStoredEnchants()).thenReturn((java.util.Map) java.util.Map.of(enchantment, level));
+        ItemStack item = mock(ItemStack.class);
+        when(item.clone()).thenReturn(item);
+        when(item.getType()).thenReturn(material);
+        when(item.getAmount()).thenReturn(1);
+        when(item.getItemMeta()).thenReturn(meta);
+        when(item.serialize())
+                .thenReturn(java.util.Map.of(
+                        "schema_version", 1,
+                        "type", "enchanted_book",
+                        "amount", 1,
+                        "enchantment", enchantmentKey,
+                        "level", level));
         return item;
     }
 }

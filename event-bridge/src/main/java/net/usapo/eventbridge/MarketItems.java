@@ -10,14 +10,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.renderer.TranslatableComponentRenderer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.TranslationStore;
 import org.bukkit.Keyed;
+import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 
 final class MarketItems {
     private static final Locale DISPLAY_LOCALE = Locale.JAPANESE;
@@ -33,6 +36,17 @@ final class MarketItems {
             new DisplayedEnchantment("mending", "修繕", false));
     private static final List<String> ROMAN_LEVELS =
             List.of("", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ");
+    private static final int STORED_ENCHANTMENT_DISPLAY_LIMIT = 4;
+    private static final Set<String> SINGLE_LEVEL_ENCHANTMENTS = Set.of(
+            "aqua_affinity",
+            "binding_curse",
+            "channeling",
+            "flame",
+            "infinity",
+            "mending",
+            "multishot",
+            "silk_touch",
+            "vanishing_curse");
 
     private MarketItems() {}
 
@@ -48,7 +62,20 @@ final class MarketItems {
     }
 
     static String marketDisplayName(ItemStack item) {
+        return contextualDisplayName(item, STORED_ENCHANTMENT_DISPLAY_LIMIT);
+    }
+
+    static String questDisplayName(ItemStack item) {
+        return contextualDisplayName(item, Integer.MAX_VALUE);
+    }
+
+    private static String contextualDisplayName(ItemStack item, int storedEnchantmentLimit) {
         String effectiveName = displayName(item);
+        String enchantedBookName =
+                enchantedBookDisplayName(item, effectiveName, storedEnchantmentLimit);
+        if (!enchantedBookName.equals(effectiveName)) {
+            return enchantedBookName;
+        }
         if (!isGeneratedEnchantmentDescription(item, effectiveName)) {
             return effectiveName;
         }
@@ -57,6 +84,57 @@ final class MarketItems {
             return effectiveName;
         }
         return effectiveName + "（" + materialName + "）";
+    }
+
+    private static String enchantedBookDisplayName(
+            ItemStack item, String effectiveName, int storedEnchantmentLimit) {
+        if (!(item.getItemMeta() instanceof EnchantmentStorageMeta meta)) {
+            return effectiveName;
+        }
+        Map<?, Integer> storedEnchantments = meta.getStoredEnchants();
+        List<StoredEnchantment> enchantments = storedEnchantments.entrySet().stream()
+                .filter(entry -> entry.getKey() instanceof Keyed)
+                .map(entry -> new StoredEnchantment(
+                        ((Keyed) entry.getKey()).getKey(), entry.getValue()))
+                .sorted((left, right) -> left.key().toString().compareTo(right.key().toString()))
+                .toList();
+        if (enchantments.isEmpty()) {
+            return effectiveName;
+        }
+        String summary = enchantments.stream()
+                .limit(storedEnchantmentLimit)
+                .map(MarketItems::storedEnchantmentName)
+                .collect(java.util.stream.Collectors.joining(" / "));
+        if (enchantments.size() > storedEnchantmentLimit) {
+            summary += " / ほか"
+                    + (enchantments.size() - storedEnchantmentLimit)
+                    + "種類";
+        }
+        return effectiveName + "（" + summary + "）";
+    }
+
+    private static String storedEnchantmentName(StoredEnchantment enchantment) {
+        NamespacedKey key = enchantment.key();
+        String name = translate(Component.translatable(
+                "enchantment." + key.getNamespace() + "." + key.getKey()));
+        if (name.isEmpty()) {
+            name = key.getKey().replace('_', ' ');
+        }
+        if (enchantment.level() == 1
+                && SINGLE_LEVEL_ENCHANTMENTS.contains(key.getKey())) {
+            return name;
+        }
+        return name + " " + enchantmentLevel(enchantment.level());
+    }
+
+    private static String enchantmentLevel(int level) {
+        if (level > 0 && level < ROMAN_LEVELS.size()) {
+            String translated = translate(Component.translatable("enchantment.level." + level));
+            if (!translated.isEmpty()) {
+                return translated;
+            }
+        }
+        return Integer.toString(level);
     }
 
     private static boolean isGeneratedEnchantmentDescription(ItemStack item, String name) {
@@ -222,4 +300,6 @@ final class MarketItems {
     }
 
     private record DisplayedEnchantment(String key, String name, boolean showsLevel) {}
+
+    private record StoredEnchantment(NamespacedKey key, int level) {}
 }

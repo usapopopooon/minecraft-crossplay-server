@@ -10,6 +10,7 @@ import org.bukkit.Keyed;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.junit.jupiter.api.Test;
 
 final class MarketItemsTest {
@@ -61,6 +62,46 @@ final class MarketItemsTest {
                                 Component.text("矢")))));
     }
 
+    @Test
+    void marketNameShowsStoredEnchantmentsOnEnchantedBooks() {
+        Keyed mending = keyed("mending");
+        Keyed unbreaking = keyed("unbreaking");
+
+        assertEquals(
+                "エンチャントの本（修繕 / 耐久力 III）",
+                MarketItems.marketDisplayName(
+                        enchantedBook(Component.translatable("item.minecraft.enchanted_book"),
+                                Map.of(unbreaking, 3, mending, 1))));
+        assertEquals(
+                "秘密の教本（修繕）",
+                MarketItems.marketDisplayName(
+                        enchantedBook(Component.text("秘密の教本"), Map.of(mending, 1))));
+        assertEquals(
+                "エンチャントの本（水中採掘 / 虫特効 V / 修繕 / ダメージ増加 V / ほか1種類）",
+                MarketItems.marketDisplayName(enchantedBook(
+                        Component.translatable("item.minecraft.enchanted_book"),
+                        Map.of(
+                                keyed("unbreaking"), 3,
+                                keyed("sharpness"), 5,
+                                mending, 1,
+                                keyed("bane_of_arthropods"), 5,
+                keyed("aqua_affinity"), 1))));
+    }
+
+    @Test
+    void questNameShowsEveryStoredEnchantment() {
+        assertEquals(
+                "エンチャントの本（水中採掘 / 虫特効 V / 修繕 / ダメージ増加 V / 耐久力 III）",
+                MarketItems.questDisplayName(enchantedBook(
+                        Component.translatable("item.minecraft.enchanted_book"),
+                        Map.of(
+                                keyed("unbreaking"), 3,
+                                keyed("sharpness"), 5,
+                                keyed("mending"), 1,
+                                keyed("bane_of_arthropods"), 5,
+                                keyed("aqua_affinity"), 1))));
+    }
+
     private static ItemStack item(String materialKey, Component effectiveName) {
         return item(materialKey, effectiveName, Map.of());
     }
@@ -90,6 +131,21 @@ final class MarketItemsTest {
                 3,
                 keyed("mending"),
                 1);
+    }
+
+    private static ItemStack enchantedBook(
+            Component effectiveName, Map<Keyed, Integer> storedEnchantments) {
+        ItemStack item = item("enchanted_book", effectiveName);
+        EnchantmentStorageMeta meta = mock(EnchantmentStorageMeta.class);
+        stubStoredEnchantments(meta, storedEnchantments);
+        when(item.getItemMeta()).thenReturn(meta);
+        return item;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void stubStoredEnchantments(
+            EnchantmentStorageMeta meta, Map<Keyed, Integer> enchantments) {
+        when(meta.getStoredEnchants()).thenReturn((Map) enchantments);
     }
 
     private static Keyed keyed(String key) {
