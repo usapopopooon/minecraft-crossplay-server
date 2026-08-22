@@ -77,8 +77,12 @@ change the confirmed charge. No client add-on is required.
 
 Linked players can also trade ordinary held item stacks with each other through
 `/market`. Floodgate/Bedrock players receive a touch-friendly product list,
-listing form, purchase confirmation, own-listings view, and private server XP
-balance check. Java players, or clients where a form cannot be shown, can use
+full pagination, common-price buttons with an arbitrary-price fallback, listing
+and cancellation confirmations, an own-listings view, and a private server XP
+balance check. Java players receive a chest menu that shows the actual listed
+items and provides product details, purchase confirmation, pagination,
+own-listing cancellation, and a button-only number pad for the listing price.
+If neither UI can be shown, players can still use
 `/market list [page]`, `/market sell <total-price>`, `/market buy <listing>`,
 `/market mine`, `/market cancel <listing>`, and `/market balance`. Listing moves
 the entire main-hand stack, including its item metadata, into persistent escrow.
@@ -105,8 +109,12 @@ Creation is a two-step escrow flow: hold a sample of the requested item and run
 Bedrock shows the exact request, deadline, and held reward in a final confirmation
 before escrow. The reward is persisted before the quest is published.
 Java players can browse with `/quest list [page]`; Floodgate/Bedrock players get
-touch-friendly paginated browse, create, confirmation, own-quest, submit, abandon,
-cancel, and claim forms from `/quest`.
+controller- and touch-friendly paginated browse, count and deadline sliders,
+confirmation, own-quest, submit, abandon, cancel, and claim forms from `/quest`.
+Java players get the corresponding chest
+menus from `/quest`, including item previews and button-only number pads for the
+requested count and fulfillment hours. The argument-based commands remain as a
+fallback if a UI cannot be shown.
 
 A quest has one assignee and requires all requested items in one submission.
 Use `/quest accept <quest>`, `/quest submit <quest>`, `/quest abandon <quest>`,

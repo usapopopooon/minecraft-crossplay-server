@@ -22,10 +22,22 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
     private final NamespacedKey draftKey;
 
     FloodgateQuestFormGateway(JavaPlugin plugin, QuestRepository repository) {
+        this(
+                plugin,
+                repository,
+                FloodgateApi.getInstance(),
+                new NamespacedKey(plugin, "quest_draft"));
+    }
+
+    FloodgateQuestFormGateway(
+            JavaPlugin plugin,
+            QuestRepository repository,
+            FloodgateApi floodgate,
+            NamespacedKey draftKey) {
         this.plugin = plugin;
         this.repository = repository;
-        this.floodgate = FloodgateApi.getInstance();
-        this.draftKey = new NamespacedKey(plugin, "quest_draft");
+        this.floodgate = floodgate;
+        this.draftKey = draftKey;
     }
 
     @Override
@@ -36,7 +48,9 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         String encodedDraft = player.getPersistentDataContainer()
                 .get(draftKey, PersistentDataType.STRING);
         QuestDraft draft = decodeDraft(encodedDraft);
-        String content = "アイテム納品を依頼・受注できます。報酬と納品物は安全な受取箱へ入ります。";
+        int claims = repository.pendingClaims(player.getUniqueId()).size();
+        String content = "アイテム納品を依頼・受注できます。報酬と納品物は安全な受取箱へ入ります。"
+                + "\n受取箱: " + claims + "件";
         if (draft != null) {
             content += "\n\n公開待ち: " + draft.requestedItemName() + " x"
                     + draft.requestedCount() + " / 期限 " + draft.fulfillmentHours() + "時間";
@@ -57,12 +71,14 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         }
         if (encodedDraft != null) {
             builder.button("下書きを破棄");
-            handlers.add(() -> actionHandler.accept(action(QuestFormAction.Kind.DISCARD, 0)));
+            handlers.add(() -> openDiscardConfirmation(player, actionHandler));
         }
         builder.button("自分の依頼・受注");
         handlers.add(() -> openMine(player, actionHandler, 1));
-        builder.button("受取箱を受け取る");
-        handlers.add(() -> actionHandler.accept(action(QuestFormAction.Kind.CLAIM, 0)));
+        if (claims > 0) {
+            builder.button("受取箱を受け取る（" + claims + "件）");
+            handlers.add(() -> actionHandler.accept(action(QuestFormAction.Kind.CLAIM, 0)));
+        }
         builder.button("閉じる");
         handlers.add(() -> {});
         SimpleForm form = builder
@@ -80,30 +96,34 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
             Player player, Consumer<QuestFormAction> actionHandler, int requestedPage) {
         List<QuestListing> allQuests = repository.openQuests();
         if (allQuests.isEmpty()) {
-            sendMessage(player, "現在募集中のクエストはありません。");
+            openInfo(
+                    player,
+                    "募集中のクエスト",
+                    "現在募集中のクエストはありません。",
+                    () -> open(player, actionHandler));
             return;
         }
-        int pages = Math.max(1, (allQuests.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-        int page = Math.min(Math.max(1, requestedPage), pages);
-        List<QuestListing> quests = allQuests.stream()
-                .skip((long) (page - 1) * PAGE_SIZE)
-                .limit(PAGE_SIZE)
-                .toList();
+        BedrockFormPages.Page<QuestListing> page =
+                BedrockFormPages.select(allQuests, requestedPage, PAGE_SIZE);
         var builder = SimpleForm.builder()
                 .title("募集中のクエスト")
-                .content("受注する依頼を選んでください。 " + page + " / " + pages);
+                .content("受注する依頼を選んでください。 " + page.number() + " / " + page.total());
         List<Runnable> handlers = new ArrayList<>();
-        quests.forEach(quest -> {
-            builder.button(label(quest));
-            handlers.add(() -> openAccept(player, quest, actionHandler, page));
+        page.items().forEach(quest -> {
+            boolean ownQuest = quest.ownerId().equals(player.getUniqueId());
+            builder.button((ownQuest ? "【自分の依頼】 " : "") + label(quest));
+            handlers.add(ownQuest
+                    ? () -> openOwnQuestFromBrowse(
+                            player, quest, actionHandler, page.number())
+                    : () -> openAccept(player, quest, actionHandler, page.number()));
         });
-        if (page > 1) {
+        if (page.number() > 1) {
             builder.button("前のページ");
-            handlers.add(() -> openListings(player, actionHandler, page - 1));
+            handlers.add(() -> openListings(player, actionHandler, page.number() - 1));
         }
-        if (page < pages) {
+        if (page.number() < page.total()) {
             builder.button("次のページ");
-            handlers.add(() -> openListings(player, actionHandler, page + 1));
+            handlers.add(() -> openListings(player, actionHandler, page.number() + 1));
         }
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
@@ -141,25 +161,53 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
     }
 
     private void openCreate(Player player, Consumer<QuestFormAction> actionHandler) {
-        CustomForm form = CustomForm.builder()
-                .title("納品依頼を作る")
-                .input("依頼品を手に持ち、個数を入力（1スタック以内）", "例: 32")
-                .input("受注後の納品期限（1〜72時間）", "例: 24", "24")
-                .validResultHandler(response -> runOnMain(() -> {
-                    try {
-                        int count = Integer.parseInt(response.asInput(0).trim());
-                        int hours = Integer.parseInt(response.asInput(1).trim());
-                        if (count <= 0 || hours < 1 || hours > 72) {
-                            throw new NumberFormatException("out of range");
-                        }
-                        actionHandler.accept(new QuestFormAction(
-                                QuestFormAction.Kind.CREATE, 0, count, hours));
-                    } catch (NumberFormatException error) {
-                        sendMessage(player, "個数は1以上、期限は1〜72の整数で入力してください。");
+        ItemStack held = player.getInventory().getItemInMainHand();
+        if (!QuestItems.isSimpleStack(held)) {
+            openInfo(
+                    player,
+                    "納品依頼を作る",
+                    "依頼品は、名前・エンチャント等のない通常のスタック可能アイテムを"
+                            + "メインハンドに持ってください。",
+                    () -> open(player, actionHandler));
+            return;
+        }
+        ItemStack shownItem = held.clone();
+        CustomForm form = creationForm(
+                MarketItems.displayName(held),
+                held.getMaxStackSize(),
+                action -> runOnMain(() -> {
+                    if (!shownItem.equals(player.getInventory().getItemInMainHand())) {
+                        openInfo(
+                                player,
+                                "納品依頼を作る",
+                                "入力中に依頼品が変わりました。もう一度依頼作成を開いてください。",
+                                () -> open(player, actionHandler));
+                        return;
                     }
-                }))
-                .build();
+                    actionHandler.accept(action);
+                }));
         sendForm(player, form);
+    }
+
+    static CustomForm creationForm(
+            String itemName,
+            int maximumCount,
+            Consumer<QuestFormAction> actionHandler) {
+        if (maximumCount < 1) {
+            throw new IllegalArgumentException("maximumCount must be positive");
+        }
+        int defaultCount = Math.min(32, maximumCount);
+        return CustomForm.builder()
+                .title("納品依頼を作る")
+                .slider(itemName + " の依頼数（1スタック以内）", 1, maximumCount, 1, defaultCount)
+                .slider("受注後の納品期限（時間）", 1, 72, 1, 24)
+                .validResultHandler(response -> {
+                    int count = Math.round(response.asSlider(0));
+                    int hours = Math.round(response.asSlider(1));
+                    actionHandler.accept(new QuestFormAction(
+                            QuestFormAction.Kind.CREATE, 0, count, hours));
+                })
+                .build();
     }
 
     private void openPublicationConfirmation(
@@ -167,12 +215,20 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         String encoded = player.getPersistentDataContainer().get(draftKey, PersistentDataType.STRING);
         QuestDraft draft = decodeDraft(encoded);
         if (draft == null) {
-            sendMessage(player, "公開できる下書きがありません。依頼を作り直してください。");
+            openInfo(
+                    player,
+                    "公開内容の確認",
+                    "公開できる下書きがありません。依頼を作り直してください。",
+                    () -> open(player, actionHandler));
             return;
         }
         ItemStack reward = player.getInventory().getItemInMainHand();
         if (!QuestItems.isSimpleStack(reward)) {
-            sendMessage(player, "報酬にする通常アイテムのスタックをメインハンドへ持ってください。");
+            openInfo(
+                    player,
+                    "公開内容の確認",
+                    "報酬にする通常アイテムのスタックをメインハンドへ持ってください。",
+                    () -> open(player, actionHandler));
             return;
         }
         ModalForm form = ModalForm.builder()
@@ -202,30 +258,31 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
             Player player, Consumer<QuestFormAction> actionHandler, int requestedPage) {
         List<QuestListing> allQuests = repository.activeFor(player.getUniqueId());
         if (allQuests.isEmpty()) {
-            sendMessage(player, "進行中の依頼・受注はありません。受取箱はメイン画面から確認できます。");
+            openInfo(
+                    player,
+                    "自分の依頼・受注",
+                    "進行中の依頼・受注はありません。受取箱はメイン画面から確認できます。",
+                    () -> open(player, actionHandler));
             return;
         }
-        int pages = Math.max(1, (allQuests.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-        int page = Math.min(Math.max(1, requestedPage), pages);
-        List<QuestListing> quests = allQuests.stream()
-                .skip((long) (page - 1) * PAGE_SIZE)
-                .limit(PAGE_SIZE)
-                .toList();
+        BedrockFormPages.Page<QuestListing> page =
+                BedrockFormPages.select(allQuests, requestedPage, PAGE_SIZE);
         var builder = SimpleForm.builder()
                 .title("自分の依頼・受注")
-                .content("詳細または操作するクエストを選んでください。 " + page + " / " + pages);
+                .content("詳細または操作するクエストを選んでください。 "
+                        + page.number() + " / " + page.total());
         List<Runnable> handlers = new ArrayList<>();
-        quests.forEach(quest -> {
+        page.items().forEach(quest -> {
             builder.button(roleLabel(player, quest) + "\n" + label(quest));
-            handlers.add(() -> openMineAction(player, quest, actionHandler, page));
+            handlers.add(() -> openMineAction(player, quest, actionHandler, page.number()));
         });
-        if (page > 1) {
+        if (page.number() > 1) {
             builder.button("前のページ");
-            handlers.add(() -> openMine(player, actionHandler, page - 1));
+            handlers.add(() -> openMine(player, actionHandler, page.number() - 1));
         }
-        if (page < pages) {
+        if (page.number() < page.total()) {
             builder.button("次のページ");
-            handlers.add(() -> openMine(player, actionHandler, page + 1));
+            handlers.add(() -> openMine(player, actionHandler, page.number() + 1));
         }
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
@@ -331,6 +388,73 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                         openMineAction(player, quest, actionHandler, page);
                     }
                 }))
+                .build();
+        sendForm(player, form);
+    }
+
+    private void openDiscardConfirmation(
+            Player player, Consumer<QuestFormAction> actionHandler) {
+        QuestDraft draft = decodeDraft(player.getPersistentDataContainer()
+                .get(draftKey, PersistentDataType.STRING));
+        String content = draft == null
+                ? "公開待ちの下書きを破棄します。アイテムは消費しません。"
+                : "依頼品: " + draft.requestedItemName() + " x" + draft.requestedCount()
+                        + "\n期限: " + draft.fulfillmentHours() + "時間"
+                        + "\n\nこの下書きを破棄しますか？アイテムは消費しません。";
+        ModalForm form = ModalForm.builder()
+                .title("下書き破棄の確認")
+                .content(content)
+                .button1("下書きを破棄する")
+                .button2("戻る")
+                .validResultHandler(response -> runOnMain(() -> {
+                    if (response.clickedFirst()) {
+                        actionHandler.accept(action(QuestFormAction.Kind.DISCARD, 0));
+                    } else {
+                        open(player, actionHandler);
+                    }
+                }))
+                .build();
+        sendForm(player, form);
+    }
+
+    private void openOwnQuestFromBrowse(
+            Player player,
+            QuestListing quest,
+            Consumer<QuestFormAction> actionHandler,
+            int page) {
+        QuestListing current = repository.find(quest.id()).orElse(null);
+        if (current == null
+                || current.status() != QuestListing.Status.OPEN
+                || !current.ownerId().equals(player.getUniqueId())) {
+            openInfo(
+                    player,
+                    "自分の依頼",
+                    "その依頼は見つからないか、すでに受注されています。",
+                    () -> openListings(player, actionHandler, page));
+            return;
+        }
+        SimpleForm form = SimpleForm.builder()
+                .title("自分の依頼")
+                .content(label(current) + "\n\n自分の依頼は受注できません。")
+                .button("取り消し内容を確認")
+                .button("募集一覧へ戻る")
+                .validResultHandler(response -> runOnMain(() -> {
+                    if (response.clickedButtonId() == 0) {
+                        openMineAction(player, current, actionHandler, page);
+                    } else {
+                        openListings(player, actionHandler, page);
+                    }
+                }))
+                .build();
+        sendForm(player, form);
+    }
+
+    private void openInfo(Player player, String title, String content, Runnable back) {
+        SimpleForm form = SimpleForm.builder()
+                .title(title)
+                .content(content)
+                .button("戻る")
+                .validResultHandler(response -> runOnMain(back))
                 .build();
         sendForm(player, form);
     }

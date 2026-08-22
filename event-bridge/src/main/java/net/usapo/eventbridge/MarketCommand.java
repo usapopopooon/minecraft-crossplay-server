@@ -24,6 +24,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     private final MarketRepository repository;
     private final MarketRequestSink requests;
     private final BedrockMarketFormGateway forms;
+    private final JavaMarketMenuGateway javaMenus;
     private final NamespacedKey pendingEscrowKey;
 
     MarketCommand(
@@ -31,9 +32,19 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             MarketRequestSink requests,
             BedrockMarketFormGateway forms,
             NamespacedKey pendingEscrowKey) {
+        this(repository, requests, forms, (player, handler) -> false, pendingEscrowKey);
+    }
+
+    MarketCommand(
+            MarketRepository repository,
+            MarketRequestSink requests,
+            BedrockMarketFormGateway forms,
+            JavaMarketMenuGateway javaMenus,
+            NamespacedKey pendingEscrowKey) {
         this.repository = repository;
         this.requests = requests;
         this.forms = forms;
+        this.javaMenus = javaMenus;
         this.pendingEscrowKey = pendingEscrowKey;
     }
 
@@ -51,7 +62,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
         if (arguments.length == 0) {
-            if (!forms.open(player, action -> handleFormAction(player, action))) {
+            if (!forms.open(player, action -> handleFormAction(player, action))
+                    && !javaMenus.open(player, action -> handleFormAction(player, action))) {
                 sendUsage(player);
             }
             return true;

@@ -30,6 +30,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
     private final QuestRepository repository;
     private final QuestActions actions;
     private final BedrockQuestFormGateway forms;
+    private final JavaQuestMenuGateway javaMenus;
     private final NamespacedKey draftKey;
     private final NamespacedKey pendingRewardKey;
     private final NamespacedKey claimHistoryKey;
@@ -41,9 +42,28 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             NamespacedKey draftKey,
             NamespacedKey pendingRewardKey,
             NamespacedKey claimHistoryKey) {
+        this(
+                repository,
+                actions,
+                forms,
+                (player, handler) -> false,
+                draftKey,
+                pendingRewardKey,
+                claimHistoryKey);
+    }
+
+    QuestCommand(
+            QuestRepository repository,
+            QuestActions actions,
+            BedrockQuestFormGateway forms,
+            JavaQuestMenuGateway javaMenus,
+            NamespacedKey draftKey,
+            NamespacedKey pendingRewardKey,
+            NamespacedKey claimHistoryKey) {
         this.repository = repository;
         this.actions = actions;
         this.forms = forms;
+        this.javaMenus = javaMenus;
         this.draftKey = draftKey;
         this.pendingRewardKey = pendingRewardKey;
         this.claimHistoryKey = claimHistoryKey;
@@ -64,7 +84,8 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
         if (arguments.length == 0) {
-            if (!forms.open(player, action -> handleFormAction(player, action))) {
+            if (!forms.open(player, action -> handleFormAction(player, action))
+                    && !javaMenus.open(player, action -> handleFormAction(player, action))) {
                 sendUsage(player);
             }
             return true;
@@ -146,8 +167,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
         }
         player.sendMessage("依頼品: " + draft.requestedItemName() + " x" + count
                 + " / 受注後の期限: " + hours + "時間");
-        player.sendMessage("次に報酬にするスタック全部をメインハンドへ持ち、/quest confirm を実行してください。");
-        player.sendMessage("Bedrock版は手を持ち替えて /quest を開き、「公開内容を確認」を選べます。");
+        player.sendMessage("次に報酬にするスタック全部をメインハンドへ持ち、/quest を開いて「公開内容を確認」を選んでください。");
         player.sendMessage("報酬は先に預かります。受注後は依頼者から取り消せません。");
     }
 
@@ -172,14 +192,14 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
         String encodedDraft = player.getPersistentDataContainer()
                 .get(draftKey, PersistentDataType.STRING);
         if (encodedDraft == null) {
-            player.sendMessage("先に依頼品を手に持って /quest create <個数> <期限時間> を実行してください。");
+            player.sendMessage("先に依頼品を手に持って /quest を開き、「依頼を作る」を選んでください。");
             return;
         }
         QuestDraft draft;
         try {
             draft = QuestDraft.decode(encodedDraft);
         } catch (IllegalArgumentException error) {
-            player.sendMessage("依頼の下書きが壊れています。/quest create から作り直してください。");
+            player.sendMessage("依頼の下書きが壊れています。/quest を開いて下書きを破棄し、作り直してください。");
             return;
         }
         ItemStack held = player.getInventory().getItemInMainHand();
@@ -229,7 +249,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
         }
         int claims = repository.pendingClaims(player.getUniqueId()).size();
         if (claims > 0) {
-            player.sendMessage("クエスト受取箱に " + claims + " 件あります: /quest claim");
+            player.sendMessage("クエスト受取箱に " + claims + " 件あります。/quest から受け取れます。");
         }
     }
 
@@ -325,7 +345,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
                     player.getName(),
                     System.currentTimeMillis());
             player.sendMessage("受注しました: " + describe(result.quest()));
-            player.sendMessage("納品時は依頼品をメインハンドにまとめて持ち、/quest submit " + questId);
+            player.sendMessage("納品時は依頼品をメインハンドにまとめて持ち、/quest の「自分の依頼・受注」から納品してください。");
         } catch (QuestActionException error) {
             player.sendMessage(error.getMessage());
         }
@@ -336,7 +356,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             QuestTransition result = actions.submit(
                     questId, UUID.randomUUID(), player, System.currentTimeMillis());
             player.sendMessage("納品が完了しました: #" + result.quest().id());
-            player.sendMessage("報酬は受取箱へ入りました: /quest claim");
+            player.sendMessage("報酬は受取箱へ入りました。/quest から受け取れます。");
         } catch (QuestActionException error) {
             player.sendMessage(error.getMessage());
         }
@@ -358,7 +378,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
     private void cancel(Player player, long questId) {
         try {
             actions.cancel(questId, UUID.randomUUID(), player.getUniqueId());
-            player.sendMessage("クエストを取り消しました。報酬は受取箱へ戻りました: /quest claim");
+            player.sendMessage("クエストを取り消しました。報酬は受取箱へ戻りました。/quest から受け取れます。");
         } catch (QuestActionException error) {
             player.sendMessage(error.getMessage());
         }
@@ -392,7 +412,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             if (!blocked.isEmpty()) {
                 player.sendMessage("空き不足で受け取れなかったもの: " + summarize(blocked));
             }
-            player.sendMessage("受取箱に残り " + remaining + " 件です。空きを作って /quest claim を再実行してください。");
+            player.sendMessage("受取箱に残り " + remaining + " 件です。空きを作って /quest から再度受け取ってください。");
         }
     }
 

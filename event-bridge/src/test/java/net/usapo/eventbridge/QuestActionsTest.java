@@ -210,7 +210,7 @@ final class QuestActionsTest {
         assertClaim(repository.pendingClaims(OWNER), "diamond", 5);
         assertTrue(messages.contains("クエスト受取箱から 1 件受け取りました。"));
         assertTrue(messages.contains("空き不足で受け取れなかったもの: diamond x5"));
-        assertTrue(messages.contains("受取箱に残り 1 件です。空きを作って /quest claim を再実行してください。"));
+        assertTrue(messages.contains("受取箱に残り 1 件です。空きを作って /quest から再度受け取ってください。"));
     }
 
     @Test
@@ -245,8 +245,51 @@ final class QuestActionsTest {
 
         assertEquals(1, hand.get().getAmount());
         assertTrue(messages.contains("クエストの下書きを破棄しました。アイテムは消費していません。"));
-        assertTrue(messages.contains("先に依頼品を手に持って /quest create <個数> <期限時間> を実行してください。"));
+        assertTrue(messages.contains("先に依頼品を手に持って /quest を開き、「依頼を作る」を選んでください。"));
         assertTrue(repository.openQuests().isEmpty());
+    }
+
+    @Test
+    void javaMenuIsUsedWhenBedrockFormIsUnavailableAndSharesTheActionPath()
+            throws IOException {
+        YamlQuestRepository repository =
+                new YamlQuestRepository(new File(directory, "java-menu.yml"));
+        QuestActions actions = new QuestActions(
+                repository,
+                (changed, kind) -> {},
+                key("pending_submission"),
+                changed -> {});
+        AtomicReference<java.util.function.Consumer<QuestFormAction>> selection =
+                new AtomicReference<>();
+        java.util.concurrent.atomic.AtomicBoolean javaMenuOpened =
+                new java.util.concurrent.atomic.AtomicBoolean();
+        QuestCommand command = new QuestCommand(
+                repository,
+                actions,
+                (target, handler) -> false,
+                (target, handler) -> {
+                    javaMenuOpened.set(true);
+                    selection.set(handler);
+                    return true;
+                },
+                key("draft"),
+                key("pending_reward"),
+                key("claim_history"));
+        List<String> messages = new ArrayList<>();
+        Player owner = player(
+                "Owner",
+                OWNER,
+                new AtomicReference<>(),
+                new AtomicInteger(),
+                new ItemStack[36],
+                messages);
+
+        command.onCommand(owner, null, "quest", new String[0]);
+        selection.get().accept(new QuestFormAction(QuestFormAction.Kind.CLAIM, 0, 0, 0));
+
+        assertTrue(javaMenuOpened.get());
+        assertTrue(messages.contains("クエスト受取箱は空です。"));
+        assertTrue(messages.stream().noneMatch(message -> message.startsWith("クエスト掲示板:")));
     }
 
     private static void assertClaim(List<QuestClaim> claims, String key, int amount) {
