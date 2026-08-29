@@ -41,7 +41,7 @@ services:
       REMOVE_OLD_MODS_DEPTH: "1"
       PATCH_DEFINITIONS: /usapo-paper-patches
       PLUGINS: |
-        https://download.geysermc.org/v2/projects/geyser/versions/2.11.1/builds/1208/downloads/spigot
+        https://download.geysermc.org/v2/projects/geyser/versions/2.11.2/builds/1233/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/138/downloads/spigot
       MODRINTH_PROJECTS: |
         viaversion:ZH8459B6
