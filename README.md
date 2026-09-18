@@ -2,10 +2,10 @@
 
 Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 
-The Minecraft runtime is pinned to the versions used for the 2026-08-05
-deployment while Enderman and experience behavior is investigated: Paper 26.2
-build 92, itzg/minecraft-server 2026.8.0, Geyser 2.11.2 build 1233, Floodgate
-2.2.5 build 138, ViaVersion 5.11.0, and ViaBackwards 5.11.0. Startup cleanup is
+Paper 26.2 build 92 and itzg/minecraft-server 2026.8.0 remain pinned while
+Enderman and experience behavior is investigated. Geyser 2.11.3 build 1245
+supports Bedrock 26.51; Floodgate 2.2.5 build 141, ViaVersion 5.11.0, and
+ViaBackwards 5.11.0 are also pinned. Startup cleanup is
 limited to those four plugin JARs so persisted copies are replaced by the
 pinned artifacts; unrelated plugins are not removed.
 
