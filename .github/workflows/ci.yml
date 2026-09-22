@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify reproducible cyan portal packs
+        run: |
+          python3 -m unittest discover -s portal-packs -p 'test_*.py' -v
+          python3 portal-packs/build.py --check
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -29,3 +33,5 @@ jobs:
           MINECRAFT_BIND_IP: 127.0.0.1
           MINECRAFT_RCON_PASSWORD: ci-placeholder
         run: docker compose config --quiet
+      - name: Check whitespace
+        run: git diff --check

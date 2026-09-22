@@ -307,17 +307,33 @@ to use the intended gates (`portal-usage.enforce-portal-access: false`).
 glowstone frames without portal blocks. Portal definitions persist in the same
 data volume.
 
-The event bridge initializes registered, one-block-thick rectangular gates in
-normal worlds with actual purple Nether portal blocks, including the standard
-animation and particles. Select the air inside the frame; glowstone frames are
-supported and solid frame blocks are preserved. No gate locations or travel
-destinations are created automatically. Selections support up to 32 blocks
-high/wide. The initializer scans every 10 ticks with a bounded block budget,
-never loads chunks, and leaves liquids/decorations untouched. It initializes
-each registered gate once per server start, so manually extinguished surfaces
-are not continually refilled during that session. Keep
-`portal-creation.clear-on-remove: true` so deleting a gate also removes its
-portal surface instead of leaving a possible unintended Nether entrance.
+The two existing gates named `to_world_1` and `to_world_2` display animated,
+semitransparent cyan surfaces inside their glowstone frames (about 70% average
+opacity). This animates the membrane, not the player's whole-screen Nether
+distortion. Their actual interiors are AIR, so the
+display does not create a Nether portal, obstruct movement, or change redstone
+or block physics. The event bridge sends client-only block states to nearby
+players every 10 ticks with bounded work, only in loaded and already-sent chunks.
+It never changes world blocks or loads chunks. Other portal names, frames,
+liquids, and decorations are untouched. Removing a display restores the current
+real block, not an old snapshot. Selections support up to 32 blocks high/wide.
+
+Java players receive an **optional** resource-pack prompt once per session.
+Only success for this pack's UUID enables the surface; decline/download failure
+keeps the gate usable with cyan particles. Other plugins' resource packs are not
+replaced. Bedrock uses Geyser's existing custom-content/integrated-pack support
+and existing required-pack policy; the bridge verifies the installed pack and
+mapping hashes before displaying it. See [portal-packs](portal-packs/README.md)
+for reproducible assets and their two reserved tripwire states. Those states are
+client carriers only, not physical blocks. Before rollout, scan actual world
+block indices for collisions with both reserved states. Future constructions
+using those exact vanilla states would also display the custom model.
+
+For an existing purple gate, back up before removing only its verified interior
+Nether-portal blocks, with players held offline. Do not clear ordinary Nether
+portals or change gate bounds/destinations. The old purple initializer remains
+in source for rollback but is no longer scheduled. No restart-time block
+migration is performed by the plugin.
 
 Cross-group travel first opens a Java inventory menu or Bedrock confirmation
 form. Items are saved for the departing group and restored for the arriving
@@ -335,8 +351,9 @@ gate retries remain suppressed until the player leaves the gate. Travel
 diagnostics record request/confirmation outcomes and validity checks by UUID,
 without recording coordinates or item contents.
 
+The cyan gates show confirmation in place, without stepping the player back.
 Java clients automatically close chest menus while touching a Nether portal.
-For purple gates, including unregistered vanilla Nether portals when crossing
+For real purple portals, including unregistered vanilla Nether portals when crossing
 inventory groups, the bridge checks the player's whole body
 (not only the feet), moves them to a checked nearby spot in the **same world**,
 then opens confirmation after the position update. This short step back does

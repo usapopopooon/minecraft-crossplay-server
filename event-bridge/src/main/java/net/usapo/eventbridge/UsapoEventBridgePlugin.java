@@ -20,6 +20,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     private volatile boolean travelConfirmationReady;
     private WorldTravelConfirmation.SourceArea travelSourceArea = location -> null;
     private GatePromptSafety gatePromptSafety;
+    private CyanGateOverlay cyanGateOverlay;
 
     @Override
     public void onEnable() {
@@ -62,9 +63,15 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                     var portal = api.getPortalManager().getPortal(location);
                     return portal == null ? null : portal.getName();
                 };
-                getServer().getScheduler().runTaskTimer(
-                        this, new MultiversePortalEffects(api.getPortalManager(), api.getPortalFiller()), 10L, 10L);
-                getLogger().info("Nether-style surfaces enabled for registered normal-world gates");
+                CyanGatePack pack = new CyanGatePack(this);
+                getServer().getPluginManager().registerEvents(pack, this);
+                cyanGateOverlay = new CyanGateOverlay(api.getPortalManager(), getServer()::getOnlinePlayers,
+                        pack::ready, getServer().createBlockData(CyanGateOverlay.X_PLANE_STATE),
+                        getServer().createBlockData(CyanGateOverlay.Z_PLANE_STATE));
+                getServer().getPluginManager().registerEvents(cyanGateOverlay, this);
+                getServer().getScheduler().runTaskTimer(this, cyanGateOverlay, 10L, 10L);
+                getServer().getOnlinePlayers().forEach(pack::offer);
+                getLogger().info("Client-only cyan surfaces enabled for the two registered world travel gates");
             });
         }
         ExchangeCatalog exchangeCatalog = new ExchangeCatalog();
@@ -280,6 +287,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         travelConfirmationReady = false;
+        if (cyanGateOverlay != null) cyanGateOverlay.close();
         if (experience != null) {
             experience.flushAll();
         }

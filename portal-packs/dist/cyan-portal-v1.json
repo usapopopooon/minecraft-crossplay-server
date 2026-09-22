@@ -1,0 +1,127 @@
+{
+  "format_version": 1,
+  "blocks": {
+    "minecraft:tripwire": {
+      "name": "usapo_cyan_portal",
+      "included_in_creative_inventory": false,
+      "only_override_states": true,
+      "display_name": "Cyan Portal",
+      "geometry": "geometry.usapo.cyan_portal_x",
+      "selection_box": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0,
+          0,
+          0
+        ]
+      },
+      "collision_box": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          0,
+          0,
+          0
+        ]
+      },
+      "light_emission": 15,
+      "light_dampening": 0,
+      "place_air": true,
+      "material_instances": {
+        "*": {
+          "texture": "usapo_cyan_portal",
+          "render_method": "blend",
+          "face_dimming": false,
+          "ambient_occlusion": 0
+        }
+      },
+      "state_overrides": {
+        "attached=true,disarmed=true,east=true,north=true,powered=false,south=true,west=true": {
+          "display_name": "Cyan Portal",
+          "geometry": "geometry.usapo.cyan_portal_x",
+          "selection_box": {
+            "origin": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              0,
+              0,
+              0
+            ]
+          },
+          "collision_box": {
+            "origin": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              0,
+              0,
+              0
+            ]
+          },
+          "light_emission": 15,
+          "light_dampening": 0,
+          "place_air": true,
+          "material_instances": {
+            "*": {
+              "texture": "usapo_cyan_portal",
+              "render_method": "blend",
+              "face_dimming": false,
+              "ambient_occlusion": 0
+            }
+          }
+        },
+        "attached=true,disarmed=true,east=true,north=true,powered=true,south=true,west=true": {
+          "display_name": "Cyan Portal",
+          "geometry": "geometry.usapo.cyan_portal_z",
+          "selection_box": {
+            "origin": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              0,
+              0,
+              0
+            ]
+          },
+          "collision_box": {
+            "origin": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              0,
+              0,
+              0
+            ]
+          },
+          "light_emission": 15,
+          "light_dampening": 0,
+          "place_air": true,
+          "material_instances": {
+            "*": {
+              "texture": "usapo_cyan_portal",
+              "render_method": "blend",
+              "face_dimming": false,
+              "ambient_occlusion": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

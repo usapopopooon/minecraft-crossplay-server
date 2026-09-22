@@ -3,6 +3,8 @@ data/
 world/
 *.mcworld
 *.zip
+!portal-packs/dist/*.zip
+logs/
 event-bridge/target/
 multiverse-inventories-isolated/target/
 !.env.example

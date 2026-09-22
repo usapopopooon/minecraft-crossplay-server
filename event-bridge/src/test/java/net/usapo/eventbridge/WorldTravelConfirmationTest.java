@@ -71,6 +71,42 @@ final class WorldTravelConfirmationTest {
     }
 
     @Test
+    void airFilledRegisteredGateConfirmsInPlaceAndProtectsTheApprovedArrival() {
+        Fixture f = new Fixture();
+        f.gate = "to_world_2";
+        f.touchingGate = false; // Client-only surface: no real Nether portal touches the body.
+        assertTrue(f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN).isCancelled());
+        f.drain();
+        assertEquals(1, f.prompts.size());
+        verify(f.player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        f.prompts.getFirst().confirm.run();
+        assertFalse(f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN).isCancelled());
+        verify(f.player).setPortalCooldown(20);
+        verify(f.player).teleportAsync(eq(f.destination), eq(PlayerTeleportEvent.TeleportCause.PLUGIN));
+        verify(f.player, never()).getInventory();
+        verify(f.player, never()).getEnderChest();
+    }
+
+    @Test
+    void cancellingAirGateStaysQuietUntilPlayerExitsAndReenters() {
+        Fixture f = new Fixture();
+        f.gate = "to_world_2";
+        f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+        f.drain();
+        f.prompts.getFirst().cancel.run();
+        f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+        f.drain();
+        assertEquals(1, f.prompts.size());
+        f.gate = null;
+        f.guard.onMove(new PlayerMoveEvent(f.player, f.location.clone(), f.location.clone().add(1, 0, 0)));
+        f.gate = "to_world_2";
+        f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+        f.drain();
+        assertEquals(2, f.prompts.size());
+        verify(f.player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+    }
+
+    @Test
     void cancelAndRepeatedGateAttemptsNeverTeleportOrSpamDialogs() {
         Fixture f = new Fixture();
         f.gate = "travel-gate";

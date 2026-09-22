@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "java_uuid": "c73b7eef-646d-4554-92b7-deedd3335abf",
+  "bedrock_header_uuid": "071961f2-0540-488f-92b3-8371a5b3000a",
+  "bedrock_module_uuid": "f75d9df3-0bc1-4514-999b-e2106fc51995",
+  "files": {
+    "cyan-portal-java-v1.zip": {
+      "sha1": "99a45cf1f794f6809f9a9534e61bf53afcc25739",
+      "sha256": "31a08a0680775ced2dd74a69ccbe6efdf7f269707d0847ae5364eb57572ff5ff",
+      "bytes": 550002
+    },
+    "cyan-portal-bedrock-v1.mcpack": {
+      "sha1": "945cbb979bd7973f1dc8fe6d492987508d97a386",
+      "sha256": "275583cc870b983dcb95a3c38426f83e2f53adbd381a4b55be01c33b158dbe68",
+      "bytes": 530890
+    },
+    "cyan-portal-v1.json": {
+      "sha1": "8c53ccaa65c6cc39720241c100c5740f17a6e586",
+      "sha256": "4c4eafbe3f8f29b7504068adcfe549dbb63f803b098c6e3a58aa15296f1b9323",
+      "bytes": 2882
+    }
+  }
+}

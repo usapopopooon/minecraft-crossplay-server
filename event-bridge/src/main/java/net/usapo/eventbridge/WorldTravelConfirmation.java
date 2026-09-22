@@ -87,7 +87,7 @@ final class WorldTravelConfirmation implements Listener {
                 && sameLocation(event.getTo(), existing.to)) {
             existing.consumed = true;
             trace(existing, "replay-allowed");
-            if (existing.gateContact || existing.standLocation != null) {
+            if (existing.portal != null || existing.gateContact || existing.standLocation != null) {
                 // MVP replays use PLUGIN, not NETHER_PORTAL. Protect the arrival gate too.
                 player.setPortalCooldown(Math.max(player.getPortalCooldown(), 20));
             } else if (event.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL

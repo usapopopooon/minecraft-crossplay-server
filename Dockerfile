@@ -17,3 +17,5 @@ FROM itzg/minecraft-server:2026.8.0@sha256:e3335993929a1565f73c30b2041bcbc1473fc
 COPY paper-patches /usapo-paper-patches
 COPY --from=event-bridge-build /build/target/usapo-event-bridge.jar /plugins/usapo-event-bridge.jar
 COPY --from=inventories-build /build/target/multiverse-inventories-5.3.6-isolated.jar /plugins/usapo-multiverse-inventories.jar
+COPY portal-packs/dist/cyan-portal-bedrock-v1.mcpack /plugins/Geyser-Spigot/packs/cyan-portal-bedrock-v1.mcpack
+COPY portal-packs/dist/cyan-portal-v1.json /plugins/Geyser-Spigot/custom_mappings/cyan-portal-v1.json
