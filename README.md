@@ -315,6 +315,11 @@ including normal `world_1`/Nether/End portals, needs no confirmation. The listen
 uses Paper's final resolved teleport destination, not preliminary portal-search
 coordinates. Cross-group native-portal confirmation preserves that destination
 and cooldown but does not replay vanilla's post-transition sound/ticket callback.
+Outside a gate, operators can retry a canceled, unavailable, or expired
+confirmation with the teleport command without first moving away. Automatic
+gate retries remain suppressed until the player leaves the gate. Travel
+diagnostics record request/confirmation outcomes and validity checks by UUID,
+without recording coordinates or item contents.
 
 For first activation, stop the server and back up the entire data volume.
 Confirm every existing player file is in `world`, `world_nether`, or

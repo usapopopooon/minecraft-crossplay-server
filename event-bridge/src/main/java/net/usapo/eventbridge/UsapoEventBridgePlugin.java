@@ -37,7 +37,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
             getServer().getPluginManager().registerEvents(new WorldTravelConfirmation(
                     action -> getServer().getScheduler().runTask(this, action),
                     prompt::open, System::currentTimeMillis,
-                    location -> travelSourceArea.portalAt(location)), this);
+                    location -> travelSourceArea.portalAt(location), getLogger()::info), this);
             travelConfirmationReady = true;
             getLogger().info("Inventory-group travel confirmation enabled for Java and Bedrock");
         }
