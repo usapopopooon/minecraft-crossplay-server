@@ -8,6 +8,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.mvplugins.multiverse.portals.MultiversePortalsApi;
 
 public final class UsapoEventBridgePlugin extends JavaPlugin {
     private static final long EXPERIENCE_FLUSH_TICKS = 5 * 20L;
@@ -17,6 +18,17 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        if (getServer().getPluginManager().isPluginEnabled("Multiverse-Core")) {
+            getServer().getPluginManager().registerEvents(new MultiverseTravelGuard(), this);
+            getLogger().info("Multiverse shortcuts to Nether and End disabled; vanilla portals unchanged");
+        }
+        if (getServer().getPluginManager().isPluginEnabled("Multiverse-Portals")) {
+            MultiversePortalsApi.whenLoaded(api -> {
+                getServer().getScheduler().runTaskTimer(
+                        this, new MultiversePortalEffects(api.getPortalManager()), 10L, 10L);
+                getLogger().info("Light-blue particles enabled for registered normal-world gates");
+            });
+        }
         ExchangeCatalog exchangeCatalog = new ExchangeCatalog();
         ResourceCatalogManager resourceCatalogManager = new ResourceCatalogManager(
                 exchangeCatalog,

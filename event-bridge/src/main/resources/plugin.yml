@@ -4,7 +4,7 @@ main: net.usapo.eventbridge.UsapoEventBridgePlugin
 description: Emits activity for mc-bot and performs atomic resource exchanges.
 author: usapo
 api-version: '26.2'
-softdepend: [floodgate]
+softdepend: [floodgate, Multiverse-Core, Multiverse-Portals]
 commands:
   exchange:
     description: Opens the Minecraft exchange menu.

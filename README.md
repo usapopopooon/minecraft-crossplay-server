@@ -264,6 +264,14 @@ remains available. The new world does not have an automatic reset schedule.
 `command.resolve-alias-name` is enabled. Fine-grained permission targets still
 use the internal legacy names `world` and `resource`, not the aliases.
 
+The event bridge also rejects Multiverse destination teleports into Nether and
+End for all players, including operators. It checks the resolved destination,
+so `/mvtp`, its aliases, coordinate/player/anchor/bed/cannon destinations, and
+`--unsafe` cannot bypass this policy. Normal Nether/End portals, respawns,
+unrelated Bukkit teleports, and return travel to either normal world are
+unchanged. Custom gates using Multiverse destinations also cannot shortcut
+into Nether/End.
+
 Multiverse-Portals supplies `/mvp` and its built-in `/mvp wand` selection tool;
 WorldEdit is not required. Operators can select the walk-through area inside a
 gate and register it with `/mvp create <portal-name> w:world_2` or `w:world_1`.
@@ -273,6 +281,15 @@ to use the intended gates (`portal-usage.enforce-portal-access: false`).
 `portal-usage.use-on-move` remains enabled for hollow frames, including
 glowstone frames without portal blocks. Portal definitions persist in the same
 data volume.
+
+The event bridge adds light-blue particles to registered, one-block-thick
+rectangular gates in normal worlds. Keep the interior empty: the effect does
+not place blocks or require flint and steel, and the frame can be glowstone.
+Standard Nether portal blocks would remain purple and are not used for this
+effect. No gate locations are created automatically.
+Effects support selections up to 32 blocks high/wide, run every 10 ticks for
+viewers within 32 blocks, and cap total particle sends at 128 per run. They
+never load chunks just to draw an effect.
 
 Back up the complete data volume with the server stopped before first enabling
 Multiverse. Its persisted configuration must preserve Paper's existing game
