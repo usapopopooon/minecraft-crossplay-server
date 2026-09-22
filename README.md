@@ -246,21 +246,25 @@ Set the same strong `MINECRAFT_RCON_PASSWORD` secret on this application and
 the mc-bot application. `MINECRAFT_CONTROL_NETWORK` can be changed when a
 different pre-created network name is required. Never publish TCP/25575.
 
-## Shared additional world
+## Additional world and inventory groups
 
 Multiverse-Core 5.8.1 exposes the existing world as `world_1` and the additional
 normal survival world, generated with seed `259`, as `world_2`. These are
 Multiverse display/command aliases; the stored dimension keys and legacy names
 remain unchanged to preserve player locations and world identity. Both run in
 the same Paper process, so the configured maximum
-of 20 players applies across all worlds together. Inventory, experience,
-Ender Chest contents, and the event bridge's rewards, market, and quests remain
-shared. Multiverse-Inventories is intentionally not installed.
+of 20 players applies across all worlds together. Multiverse-Inventories 5.3.6
+separates inventory/hotbar, armor, offhand, and Ender Chest into two groups:
+`world_1` plus the existing Nether/End, and `world_2` alone. Experience,
+health/food/respawn behavior, and the event bridge's rewards, market, and quests
+remain unchanged. This is not a complete ban on moving value between worlds:
+the shared market remains available by design.
 
-Players travel with `/mvtp world_2` and return with `/mvtp world_1`. The server's
-`permissions.yml` grants only self-teleport to those destinations, not world
-administration or teleporting other players. Existing Nether/End portal access
-remains available. The new world does not have an automatic reset schedule.
+Players travel through the registered gates. `/mvtp world_2`, `/mvtp world_1`,
+and other Multiverse teleport command forms are operator-only; the server's
+`permissions.yml` no longer grants ordinary players self-teleport permission.
+Existing Nether/End portal access remains available. The new world does not
+have an automatic reset schedule.
 `command.resolve-alias-name` is enabled. Fine-grained permission targets still
 use the internal legacy names `world` and `resource`, not the aliases.
 
@@ -282,14 +286,56 @@ to use the intended gates (`portal-usage.enforce-portal-access: false`).
 glowstone frames without portal blocks. Portal definitions persist in the same
 data volume.
 
-The event bridge adds light-blue particles to registered, one-block-thick
-rectangular gates in normal worlds. Keep the interior empty: the effect does
-not place blocks or require flint and steel, and the frame can be glowstone.
-Standard Nether portal blocks would remain purple and are not used for this
-effect. No gate locations are created automatically.
-Effects support selections up to 32 blocks high/wide, run every 10 ticks for
-viewers within 32 blocks, and cap total particle sends at 128 per run. They
-never load chunks just to draw an effect.
+The event bridge initializes registered, one-block-thick rectangular gates in
+normal worlds with actual purple Nether portal blocks, including the standard
+animation and particles. Select the air inside the frame; glowstone frames are
+supported and solid frame blocks are preserved. No gate locations or travel
+destinations are created automatically. Selections support up to 32 blocks
+high/wide. The initializer scans every 10 ticks with a bounded block budget,
+never loads chunks, and leaves liquids/decorations untouched. It initializes
+each registered gate once per server start, so manually extinguished surfaces
+are not continually refilled during that session. Keep
+`portal-creation.clear-on-remove: true` so deleting a gate also removes its
+portal surface instead of leaving a possible unintended Nether entrance.
+
+Cross-group travel first opens a Java inventory menu or Bedrock confirmation
+form. Items are saved for the departing group and restored for the arriving
+group automatically; players do not need to remove their equipment. Canceling,
+closing, dying, disconnecting, leaving the gate, or waiting over 30 seconds does
+not move the player or restore an old item snapshot. Same-group travel,
+including normal `world_1`/Nether/End portals, needs no confirmation. The listener
+uses Paper's final resolved teleport destination, not preliminary portal-search
+coordinates. Cross-group native-portal confirmation preserves that destination
+and cooldown but does not replay vanilla's post-transition sound/ticket callback.
+
+For first activation, stop the server and back up the entire data volume.
+Confirm every existing player file is in `world`, `world_nether`, or
+`world_the_end` before installing fresh inventory profiles; if any player is in
+`resource`, resolve the migration explicitly instead of silently adopting that
+player's existing items into `world_2`. Existing shared items remain in the
+`world_1` group and each player's first `world_2` inventory is empty. Paper 26.2
+player files live in `world/players/data/`; do not convert their item format or
+import staging profiles. Multiverse-Inventories saves the existing loaded items
+on the first group departure or logout, without a separate importer.
+
+Persist these tested Multiverse-Inventories settings in the data volume:
+`enable-bypass-permissions: false`, `enable-gamemode-share-handling: false`,
+`default-ungrouped-worlds: false`, `active-optional-shares: []`,
+`validate-bed-anchor-respawn-location: false`, `reset-last-location-on-death: false`,
+`use-byte-serialization-for-inventory-data: true`, and
+`apply-playerdata-on-join: false`. `world_1_inventory` shares `[inventory]` across
+`world`, `world_nether`, and `world_the_end`; `world_2_inventory` shares
+`[inventory]` in `resource`. A `global_stats` group covers all four worlds with
+`shares: []` and `disabled-shares: [all, -inventory]`, preventing changes to
+experience, health, food, respawn, and other non-item state. Do not replace this
+with an actively shared `all` group. No conflicting inventory shares are allowed.
+
+Keep `plugins/UsapoEventBridge/inventory-migration.pending` present while
+verifying the rollout: the event bridge blocks new logins until the marker is
+removed and both inventory handling and confirmation registration are ready.
+Remove the marker only after checking startup logs, profiles/configuration,
+unchanged player files and world settings, and Java/Bedrock readiness. Operators
+are subject to the same inventory separation as other players.
 
 Back up the complete data volume with the server stopped before first enabling
 Multiverse. Its persisted configuration must preserve Paper's existing game

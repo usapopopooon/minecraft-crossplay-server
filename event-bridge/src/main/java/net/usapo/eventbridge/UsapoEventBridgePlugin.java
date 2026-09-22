@@ -15,18 +15,41 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     private static final long QUEST_EXPIRY_TICKS = 60 * 20L;
 
     private ExperienceAccumulator experience;
+    private volatile boolean travelConfirmationReady;
+    private WorldTravelConfirmation.SourceArea travelSourceArea = location -> null;
 
     @Override
     public void onEnable() {
+        getServer().getPluginManager().registerEvents(new InventoryMigrationMaintenance(
+                getDataFolder().toPath().resolve("inventory-migration.pending"),
+                () -> travelConfirmationReady
+                        && getServer().getPluginManager().isPluginEnabled("Multiverse-Inventories")), this);
         if (getServer().getPluginManager().isPluginEnabled("Multiverse-Core")) {
             getServer().getPluginManager().registerEvents(new MultiverseTravelGuard(), this);
             getLogger().info("Multiverse shortcuts to Nether and End disabled; vanilla portals unchanged");
         }
+        if (getServer().getPluginManager().isPluginEnabled("Multiverse-Inventories")) {
+            BedrockWorldTravelPrompt bedrockPrompt =
+                    getServer().getPluginManager().isPluginEnabled("floodgate")
+                            ? new FloodgateWorldTravelPrompt(this) : null;
+            WorldTravelPrompt prompt = new WorldTravelPrompt(this, bedrockPrompt);
+            getServer().getPluginManager().registerEvents(prompt, this);
+            getServer().getPluginManager().registerEvents(new WorldTravelConfirmation(
+                    action -> getServer().getScheduler().runTask(this, action),
+                    prompt::open, System::currentTimeMillis,
+                    location -> travelSourceArea.portalAt(location)), this);
+            travelConfirmationReady = true;
+            getLogger().info("Inventory-group travel confirmation enabled for Java and Bedrock");
+        }
         if (getServer().getPluginManager().isPluginEnabled("Multiverse-Portals")) {
             MultiversePortalsApi.whenLoaded(api -> {
+                travelSourceArea = location -> {
+                    var portal = api.getPortalManager().getPortal(location);
+                    return portal == null ? null : portal.getName();
+                };
                 getServer().getScheduler().runTaskTimer(
-                        this, new MultiversePortalEffects(api.getPortalManager()), 10L, 10L);
-                getLogger().info("Light-blue particles enabled for registered normal-world gates");
+                        this, new MultiversePortalEffects(api.getPortalManager(), api.getPortalFiller()), 10L, 10L);
+                getLogger().info("Nether-style surfaces enabled for registered normal-world gates");
             });
         }
         ExchangeCatalog exchangeCatalog = new ExchangeCatalog();
@@ -241,6 +264,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        travelConfirmationReady = false;
         if (experience != null) {
             experience.flushAll();
         }
