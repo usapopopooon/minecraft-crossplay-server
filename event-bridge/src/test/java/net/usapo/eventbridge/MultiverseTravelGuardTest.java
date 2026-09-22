@@ -7,11 +7,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.lang.ref.Reference;
+import java.util.ArrayList;
+import java.util.List;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mvplugins.multiverse.core.destination.DestinationInstance;
 import org.mvplugins.multiverse.core.event.MVTeleportDestinationEvent;
@@ -19,6 +23,13 @@ import org.mvplugins.multiverse.external.vavr.control.Option;
 
 final class MultiverseTravelGuardTest {
     private final MultiverseTravelGuard guard = new MultiverseTravelGuard();
+    // Bukkit Location keeps only a weak world reference; retain mock worlds like a server does.
+    private final List<World> loadedWorlds = new ArrayList<>();
+
+    @AfterEach
+    void retainWorldsUntilTheTestCompletes() {
+        Reference.reachabilityFence(loadedWorlds);
+    }
 
     @Test
     void allDestinationKindsToNetherAndEndAreDeniedEvenForOperators() {
@@ -100,9 +111,10 @@ final class MultiverseTravelGuardTest {
         }
     }
 
-    private static Location location(World.Environment environment) {
+    private Location location(World.Environment environment) {
         World world = mock(World.class);
         when(world.getEnvironment()).thenReturn(environment);
+        loadedWorlds.add(world);
         return new Location(world, 0, 80, 0);
     }
 
