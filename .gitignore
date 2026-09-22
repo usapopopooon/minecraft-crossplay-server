@@ -4,4 +4,5 @@ world/
 *.mcworld
 *.zip
 event-bridge/target/
+multiverse-inventories-isolated/target/
 !.env.example

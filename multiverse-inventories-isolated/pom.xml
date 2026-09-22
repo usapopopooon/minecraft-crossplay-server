@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>net.usapo</groupId>
+  <artifactId>multiverse-inventories-isolated</artifactId>
+  <version>5.3.6</version>
+  <name>Multiverse Inventories isolated NBT packaging</name>
+
+  <properties>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.build.outputTimestamp>2026-09-22T00:00:00Z</project.build.outputTimestamp>
+    <upstream.jar>${project.build.directory}/upstream/multiverse-inventories-5.3.6.jar</upstream.jar>
+    <upstream.sha256>6e58e89009283f4be8658abe2b7e46c482010ceccf3c8e0b0e8ca6a0a114ff92</upstream.sha256>
+  </properties>
+
+  <build>
+    <finalName>multiverse-inventories-5.3.6-isolated</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration><forceCreation>true</forceCreation></configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>download-and-check-official-release</id>
+            <phase>generate-resources</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.directory}/upstream"/>
+                <get src="https://github.com/Multiverse/Multiverse-Inventories/releases/download/5.3.6/multiverse-inventories-5.3.6.jar"
+                     dest="${upstream.jar}" skipexisting="true" retries="3" quiet="true"/>
+                <checksum file="${upstream.jar}" algorithm="SHA-256" property="actual.upstream.sha256"/>
+                <fail message="Official Multiverse-Inventories 5.3.6 SHA-256 mismatch; refusing to package">
+                  <condition><not><equals arg1="${actual.upstream.sha256}" arg2="${upstream.sha256}"/></not></condition>
+                </fail>
+                <!-- Shade's extraJars intentionally bypass artifact filters. Remove only
+                     the unused multi-release module descriptor before relocation. -->
+                <zip destfile="${project.build.directory}/upstream/without-module-info.jar">
+                  <zipfileset src="${upstream.jar}" excludes="META-INF/versions/**/module-info.class"/>
+                </zip>
+              </target>
+            </configuration>
+          </execution>
+          <execution>
+            <id>verify-isolated-plugin</id>
+            <phase>verify</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <java classname="net.usapo.packaging.VerifyIsolatedJar" fork="true" failonerror="true">
+                  <classpath><pathelement location="${project.build.testOutputDirectory}"/></classpath>
+                  <arg value="${upstream.jar}"/>
+                  <arg value="${project.build.directory}/${project.build.finalName}.jar"/>
+                </java>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <extraJars><extraJar>${project.build.directory}/upstream/without-module-info.jar</extraJar></extraJars>
+              <relocations>
+                <relocation>
+                  <pattern>com.viaversion.nbt</pattern>
+                  <shadedPattern>net.usapo.mvinv.internal.nbt</shadedPattern>
+                </relocation>
+              </relocations>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

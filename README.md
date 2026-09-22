@@ -260,6 +260,14 @@ health/food/respawn behavior, and the event bridge's rewards, market, and quests
 remain unchanged. This is not a complete ban on moving value between worlds:
 the shared market remains available by design.
 
+The image packages the checksum-pinned official Multiverse-Inventories 5.3.6
+release with only its embedded `com.viaversion.nbt` package relocated to a
+private namespace. The upstream JAR otherwise conflicts with the existing
+ViaVersion/ViaBackwards class loaders. `multiverse-inventories-isolated` builds
+and verifies this isolated artifact; plugin identity, item serialization, and
+saved inventory data formats are unchanged. Do not additionally install the
+unmodified JAR alongside `/plugins/usapo-multiverse-inventories.jar`.
+
 Players travel through the registered gates. `/mvtp world_2`, `/mvtp world_1`,
 and other Multiverse teleport command forms are operator-only; the server's
 `permissions.yml` no longer grants ordinary players self-teleport permission.

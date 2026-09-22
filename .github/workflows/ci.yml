@@ -17,9 +17,13 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-          cache-dependency-path: event-bridge/pom.xml
+          cache-dependency-path: |
+            event-bridge/pom.xml
+            multiverse-inventories-isolated/pom.xml
       - name: Test Paper event bridge
         run: mvn --batch-mode --no-transfer-progress --file event-bridge/pom.xml verify
+      - name: Verify isolated Multiverse-Inventories artifact
+        run: mvn --batch-mode --no-transfer-progress --file multiverse-inventories-isolated/pom.xml verify
       - name: Validate Docker Compose
         env:
           MINECRAFT_BIND_IP: 127.0.0.1

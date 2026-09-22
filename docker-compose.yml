@@ -45,7 +45,6 @@ services:
         https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/141/downloads/spigot
         https://github.com/Multiverse/Multiverse-Core/releases/download/5.8.1/multiverse-core-5.8.1.jar
         https://github.com/Multiverse/Multiverse-Portals/releases/download/5.3.0/multiverse-portals-5.3.0.jar
-        https://github.com/Multiverse/Multiverse-Inventories/releases/download/5.3.6/multiverse-inventories-5.3.6.jar
       MODRINTH_PROJECTS: |
         viaversion:ZH8459B6
         viabackwards:hYhg2QBT
