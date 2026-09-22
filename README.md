@@ -321,6 +321,16 @@ gate retries remain suppressed until the player leaves the gate. Travel
 diagnostics record request/confirmation outcomes and validity checks by UUID,
 without recording coordinates or item contents.
 
+Java clients automatically close chest menus while touching a Nether portal.
+For the registered purple gates, the bridge checks the player's whole body
+(not only the feet), moves them to a checked nearby spot in the **same world**,
+then opens confirmation after the position update. This short step back does
+not switch inventories. The helper never loads chunks or changes blocks; it
+requires empty body space and safe, solid support, and refuses the transfer if
+neither side is safe. Moving away or re-entering before confirmation invalidates
+the request. Arrival cooldown also covers Multiverse's `PLUGIN` teleport cause,
+preventing the destination gate from immediately returning the player.
+
 For first activation, stop the server and back up the entire data volume.
 Confirm every existing player file is in `world`, `world_nether`, or
 `world_the_end` before installing fresh inventory profiles; if any player is in

@@ -23,12 +23,17 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 final class WorldTravelConfirmation implements Listener {
     private static final long TIMEOUT_MILLIS = 30_000;
     private static final Consumer<String> NO_DIAGNOSTICS = ignored -> {};
+    private static final GateSafety NO_GATE_SAFETY = new GateSafety() {
+        public boolean touchingGate(Player player, Location at) { return false; }
+        public Location safeOutside(Player player, Location from) { return null; }
+    };
     private final Map<UUID, Pending> pending = new HashMap<>();
     private final Consumer<Runnable> schedule;
     private final Prompt prompt;
     private final LongSupplier clock;
     private final SourceArea sourceArea;
     private final Consumer<String> diagnostics;
+    private final GateSafety gateSafety;
 
     interface Prompt {
         boolean open(Player player, String label, Runnable confirm, Runnable cancel);
@@ -39,6 +44,11 @@ final class WorldTravelConfirmation implements Listener {
         String portalAt(Location location);
     }
 
+    interface GateSafety {
+        boolean touchingGate(Player player, Location at);
+        Location safeOutside(Player player, Location from);
+    }
+
     WorldTravelConfirmation(Consumer<Runnable> schedule, Prompt prompt,
                             LongSupplier clock, SourceArea sourceArea) {
         this(schedule, prompt, clock, sourceArea, NO_DIAGNOSTICS);
@@ -46,11 +56,18 @@ final class WorldTravelConfirmation implements Listener {
 
     WorldTravelConfirmation(Consumer<Runnable> schedule, Prompt prompt,
                             LongSupplier clock, SourceArea sourceArea, Consumer<String> diagnostics) {
+        this(schedule, prompt, clock, sourceArea, diagnostics, NO_GATE_SAFETY);
+    }
+
+    WorldTravelConfirmation(Consumer<Runnable> schedule, Prompt prompt,
+                            LongSupplier clock, SourceArea sourceArea, Consumer<String> diagnostics,
+                            GateSafety gateSafety) {
         this.schedule = schedule;
         this.prompt = prompt;
         this.clock = clock;
         this.sourceArea = sourceArea;
         this.diagnostics = diagnostics;
+        this.gateSafety = gateSafety;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -70,7 +87,10 @@ final class WorldTravelConfirmation implements Listener {
                 && sameLocation(event.getTo(), existing.to)) {
             existing.consumed = true;
             trace(existing, "replay-allowed");
-            if (event.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL
+            if (existing.gateContact || existing.standLocation != null) {
+                // MVP replays use PLUGIN, not NETHER_PORTAL. Protect the arrival gate too.
+                player.setPortalCooldown(Math.max(player.getPortalCooldown(), 20));
+            } else if (event.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL
                     || event.getCause() == PlayerTeleportEvent.TeleportCause.END_PORTAL) {
                 player.setPortalCooldown(Math.max(player.getPortalCooldown(), 10));
             }
@@ -82,7 +102,8 @@ final class WorldTravelConfirmation implements Listener {
             return;
         }
         Pending request = new Pending(player, event.getFrom().clone(), event.getTo().clone(),
-                event.getCause(), sourceArea.portalAt(event.getFrom()), clock.getAsLong());
+                event.getCause(), sourceArea.portalAt(event.getFrom()), clock.getAsLong(),
+                gateSafety.touchingGate(player, event.getFrom()));
         pending.put(player.getUniqueId(), request);
         trace(request, "request-new");
         schedule.accept(() -> {
@@ -91,15 +112,53 @@ final class WorldTravelConfirmation implements Listener {
                 cancel(request, "next-tick-invalid");
                 return;
             }
-            String label = group(request.to.getWorld()) == Group.SECOND
-                    ? "world_2" : "world_1 側（ネザー・エンドを含む）";
-            boolean opened = prompt.open(player, label, () -> confirm(request), () -> cancel(request, "callback"));
-            trace(request, "prompt opened=" + opened);
-            if (!opened) {
-                cancel(request, "prompt-unavailable");
-                player.sendMessage("確認画面を開けなかったため、移動を中止しました。");
+            if (gateSafety.touchingGate(player, player.getLocation())) {
+                Location outside = gateSafety.safeOutside(player, player.getLocation());
+                if (outside == null || outside.getWorld() != request.from.getWorld()
+                        || outside.distanceSquared(request.from) > 16) {
+                    cancel(request, "no-safe-gate-exit");
+                    player.sendMessage("ゲートの手前に安全な足場がないため、移動を中止しました。");
+                    return;
+                }
+                // The Java client closes chest menus while its body intersects a Nether portal.
+                // Step back in the SAME world; inventory switching still requires confirmation.
+                boolean moved = player.teleport(outside, PlayerTeleportEvent.TeleportCause.PLUGIN);
+                if (moved) {
+                    request.standLocation = outside.clone();
+                }
+                trace(request, "gate-step-back success=" + moved);
+                if (!moved || !current(request) || !valid(request)) {
+                    cancel(request, "gate-step-back-failed");
+                    player.sendMessage("確認画面を開ける位置に戻れなかったため、移動を中止しました。");
+                    return;
+                }
+                // Let the client receive the position correction and leave the portal block first.
+                schedule.accept(() -> schedule.accept(() -> openPrompt(request)));
+                return;
             }
+            if (request.gateContact) {
+                // The player may already have stepped out during the first cancelled attempt.
+                request.standLocation = player.getLocation().clone();
+            }
+            openPrompt(request);
         });
+    }
+
+    private void openPrompt(Pending request) {
+        if (!current(request) || request.resolved || !valid(request)) {
+            trace(request, "prompt-invalid");
+            cancel(request, "prompt-invalid");
+            return;
+        }
+        String label = group(request.to.getWorld()) == Group.SECOND
+                ? "world_2" : "world_1 側（ネザー・エンドを含む）";
+        boolean opened = prompt.open(request.player, label,
+                () -> confirm(request), () -> cancel(request, "callback"));
+        trace(request, "prompt opened=" + opened);
+        if (!opened) {
+            cancel(request, "prompt-unavailable");
+            request.player.sendMessage("確認画面を開けなかったため、移動を中止しました。");
+        }
     }
 
     /** Observes earlier cancellation too, without changing the event or pending state. */
@@ -183,7 +242,8 @@ final class WorldTravelConfirmation implements Listener {
         // Gate movement is automatic: Cancel must stay quiet until the player exits.
         // Outside a gate, a later command is an explicit retry after cancellation or expiry.
         // Preserve a live prompt or its in-flight approved replay instead of replacing it.
-        return request.portal != null || (clock.getAsLong() - request.created <= TIMEOUT_MILLIS
+        return ((request.portal != null || request.gateContact) && request.standLocation == null)
+                || (clock.getAsLong() - request.created <= TIMEOUT_MILLIS
                 && (!request.resolved || request.approved));
     }
 
@@ -202,7 +262,8 @@ final class WorldTravelConfirmation implements Listener {
                     + " cause=" + request.cause + " current=" + current(request)
                     + " online=" + request.player.isOnline() + " dead=" + request.player.isDead()
                     + " ageMs=" + (clock.getAsLong() - request.created) + " sameWorld=" + sameWorld
-                    + " source=" + source + " resolved=" + request.resolved
+                    + " source=" + source + " steppedBack=" + (request.standLocation != null)
+                    + " resolved=" + request.resolved
                     + " approved=" + request.approved + " consumed=" + request.consumed);
         } catch (RuntimeException ignored) {
             // A diagnostic sink must never change travel behavior.
@@ -219,6 +280,14 @@ final class WorldTravelConfirmation implements Listener {
         }
         if (current.getWorld() != request.from.getWorld()) {
             return false;
+        }
+        if (request.standLocation != null) {
+            return current.distanceSquared(request.standLocation) <= 4
+                    && !gateSafety.touchingGate(request.player, current);
+        }
+        if (request.gateContact) {
+            // Native portal collision can trigger with the player's feet outside the selection.
+            return current.distanceSquared(request.from) <= 4;
         }
         if (request.portal != null) {
             return request.portal.equals(sourceArea.portalAt(current));
@@ -272,18 +341,21 @@ final class WorldTravelConfirmation implements Listener {
         final PlayerTeleportEvent.TeleportCause cause;
         final String portal;
         final long created;
+        final boolean gateContact;
+        Location standLocation;
         boolean resolved;
         boolean approved;
         boolean consumed;
 
         Pending(Player player, Location from, Location to, PlayerTeleportEvent.TeleportCause cause,
-                String portal, long created) {
+                String portal, long created, boolean gateContact) {
             this.player = player;
             this.from = from;
             this.to = to;
             this.cause = cause;
             this.portal = portal;
             this.created = created;
+            this.gateContact = gateContact;
         }
     }
 }

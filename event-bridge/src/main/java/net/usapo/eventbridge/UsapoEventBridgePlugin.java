@@ -6,6 +6,8 @@ import java.util.Objects;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.mvplugins.multiverse.portals.MultiversePortalsApi;
@@ -17,6 +19,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     private ExperienceAccumulator experience;
     private volatile boolean travelConfirmationReady;
     private WorldTravelConfirmation.SourceArea travelSourceArea = location -> null;
+    private GatePromptSafety gatePromptSafety;
 
     @Override
     public void onEnable() {
@@ -35,14 +38,25 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
             WorldTravelPrompt prompt = new WorldTravelPrompt(this, bedrockPrompt);
             getServer().getPluginManager().registerEvents(prompt, this);
             getServer().getPluginManager().registerEvents(new WorldTravelConfirmation(
-                    action -> getServer().getScheduler().runTask(this, action),
+                    // A nested delay-0 runTask can run in the same heartbeat on Paper.
+                    // Delay at least one real tick so gate position corrections precede the GUI.
+                    action -> getServer().getScheduler().runTaskLater(this, action, 1L),
                     prompt::open, System::currentTimeMillis,
-                    location -> travelSourceArea.portalAt(location), getLogger()::info), this);
+                    location -> travelSourceArea.portalAt(location), getLogger()::info,
+                    new WorldTravelConfirmation.GateSafety() {
+                        public boolean touchingGate(Player player, Location at) {
+                            return gatePromptSafety != null && gatePromptSafety.touchingGate(player, at);
+                        }
+                        public Location safeOutside(Player player, Location from) {
+                            return gatePromptSafety == null ? null : gatePromptSafety.safeOutside(player, from);
+                        }
+                    }), this);
             travelConfirmationReady = true;
             getLogger().info("Inventory-group travel confirmation enabled for Java and Bedrock");
         }
         if (getServer().getPluginManager().isPluginEnabled("Multiverse-Portals")) {
             MultiversePortalsApi.whenLoaded(api -> {
+                gatePromptSafety = new GatePromptSafety(api.getPortalManager());
                 travelSourceArea = location -> {
                     var portal = api.getPortalManager().getPortal(location);
                     return portal == null ? null : portal.getName();

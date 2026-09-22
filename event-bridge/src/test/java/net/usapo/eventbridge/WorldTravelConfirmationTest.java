@@ -433,6 +433,110 @@ final class WorldTravelConfirmationTest {
         assertEquals(1, f.prompts.size());
     }
 
+    @Test
+    void gateContactOutsideFootSelectionStepsBackInSameWorldBeforeOpeningAndReplaysOnce() {
+        Fixture f = new Fixture();
+        f.touchingGate = true; // Feet are outside MVP's selection, but the body touches purple blocks.
+        f.outside = new Location(f.main, -2, 65, 0);
+        when(f.player.teleport(any(Location.class), eq(PlayerTeleportEvent.TeleportCause.PLUGIN)))
+                .thenAnswer(call -> {
+                    Location target = call.getArgument(0);
+                    PlayerTeleportEvent step = new PlayerTeleportEvent(f.player, f.location.clone(), target.clone(),
+                            PlayerTeleportEvent.TeleportCause.PLUGIN);
+                    f.guard.onTeleport(step);
+                    assertFalse(step.isCancelled());
+                    assertSame(f.main, target.getWorld());
+                    f.location = target.clone();
+                    f.touchingGate = false;
+                    return true;
+                });
+        assertTrue(f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN).isCancelled());
+        f.scheduled.remove().run();
+        assertEquals(f.outside, f.location);
+        assertTrue(f.prompts.isEmpty());
+        f.scheduled.remove().run();
+        assertTrue(f.prompts.isEmpty());
+        f.scheduled.remove().run();
+        assertEquals(1, f.prompts.size());
+        verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        f.prompts.getFirst().confirm.run();
+        assertFalse(f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN).isCancelled());
+        verify(f.player).teleportAsync(eq(f.destination), eq(PlayerTeleportEvent.TeleportCause.PLUGIN));
+        verify(f.player).setPortalCooldown(20);
+        verify(f.player, never()).getInventory();
+        verify(f.player, never()).getEnderChest();
+    }
+
+    @Test
+    void gatePromptFailsClosedWithoutASafeNearbySameWorldExitOrWhenStepBackIsRejected() {
+        for (String failure : List.of("missing", "different-world", "too-far", "rejected")) {
+            Fixture f = new Fixture();
+            f.touchingGate = true;
+            f.outside = switch (failure) {
+                case "missing" -> null;
+                case "different-world" -> new Location(f.second, 0, 65, 0);
+                case "too-far" -> new Location(f.main, 5, 65, 0);
+                default -> new Location(f.main, -2, 65, 0);
+            };
+            assertTrue(f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN).isCancelled());
+            f.drain();
+            assertTrue(f.prompts.isEmpty(), failure);
+            verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+            f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+            f.drain();
+            assertTrue(f.prompts.isEmpty(), failure);
+            if (failure.equals("rejected")) {
+                verify(f.player, times(1)).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+            }
+            if (!failure.equals("rejected")) {
+                verify(f.player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+            }
+        }
+    }
+
+    @Test
+    void reenteringGateOrLeavingBeforeDelayedPromptCannotOpenOrApproveIt() {
+        for (String change : List.of("gate", "move", "quit")) {
+            Fixture f = new Fixture();
+            f.touchingGate = true;
+            f.outside = new Location(f.main, -2, 65, 0);
+            when(f.player.teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class)))
+                    .thenAnswer(call -> { f.location = f.outside.clone(); f.touchingGate = false; return true; });
+            f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+            f.scheduled.remove().run();
+            if (change.equals("gate")) f.touchingGate = true;
+            else if (change.equals("move")) f.location.add(3, 0, 0);
+            else {
+                PlayerQuitEvent quit = mock(PlayerQuitEvent.class);
+                when(quit.getPlayer()).thenReturn(f.player);
+                f.guard.onQuit(quit);
+            }
+            f.drain();
+            assertTrue(f.prompts.isEmpty(), change);
+            verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        }
+    }
+
+    @Test
+    void cancelAfterStepBackAllowsExplicitCommandRetryWithoutSwitchingInventory() {
+        Fixture f = new Fixture();
+        f.touchingGate = true;
+        f.outside = new Location(f.main, -2, 65, 0);
+        when(f.player.teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class)))
+                .thenAnswer(call -> { f.location = f.outside.clone(); f.touchingGate = false; return true; });
+        f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+        f.drain();
+        Prompt old = f.prompts.getFirst();
+        old.cancel.run();
+        f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
+        f.drain();
+        assertEquals(2, f.prompts.size());
+        old.confirm.run();
+        verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        f.prompts.getLast().confirm.run();
+        verify(f.player).teleportAsync(eq(f.destination), eq(PlayerTeleportEvent.TeleportCause.PLUGIN));
+    }
+
     private static World world(String key) {
         World world = mock(World.class);
         when(world.getKey()).thenReturn(NamespacedKey.minecraft(key));
@@ -454,12 +558,17 @@ final class WorldTravelConfirmationTest {
         boolean show = true;
         boolean failDiagnostics;
         String gate;
+        boolean touchingGate;
+        Location outside;
         final WorldTravelConfirmation guard = new WorldTravelConfirmation(scheduled::add, (p, label, yes, no) -> {
             prompts.add(new Prompt(yes, no));
             return show;
         }, () -> now, l -> gate, line -> {
             if (failDiagnostics) throw new IllegalStateException("Diagnostic sink unavailable");
             traces.add(line);
+        }, new WorldTravelConfirmation.GateSafety() {
+            public boolean touchingGate(Player p, Location at) { return touchingGate; }
+            public Location safeOutside(Player p, Location from) { return outside; }
         });
 
         Fixture() {
