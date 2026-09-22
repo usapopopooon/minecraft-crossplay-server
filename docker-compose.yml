@@ -37,13 +37,14 @@ services:
       # Set to false only when diagnosing the event-bridge bonus path.
       USAPO_BONUSES_ENABLED: "${USAPO_BONUSES_ENABLED:-true}"
       REMOVE_OLD_MODS: "TRUE"
-      REMOVE_OLD_MODS_INCLUDE: "Geyser-Spigot.jar,floodgate-spigot.jar,ViaVersion-*.jar,ViaBackwards-*.jar,multiverse-core-*.jar"
+      REMOVE_OLD_MODS_INCLUDE: "Geyser-Spigot.jar,floodgate-spigot.jar,ViaVersion-*.jar,ViaBackwards-*.jar,multiverse-core-*.jar,multiverse-portals-*.jar"
       REMOVE_OLD_MODS_DEPTH: "1"
       PATCH_DEFINITIONS: /usapo-paper-patches
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/2.11.3/builds/1245/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/141/downloads/spigot
         https://github.com/Multiverse/Multiverse-Core/releases/download/5.8.1/multiverse-core-5.8.1.jar
+        https://github.com/Multiverse/Multiverse-Portals/releases/download/5.3.0/multiverse-portals-5.3.0.jar
       MODRINTH_PROJECTS: |
         viaversion:ZH8459B6
         viabackwards:hYhg2QBT

@@ -5,9 +5,10 @@ Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 Paper 26.2 build 92 and itzg/minecraft-server 2026.8.0 remain pinned while
 Enderman and experience behavior is investigated. Geyser 2.11.3 build 1245
 supports Bedrock 26.51; Floodgate 2.2.5 build 141, ViaVersion 5.11.0,
-ViaBackwards 5.11.0, and Multiverse-Core 5.8.1 are also pinned. Startup cleanup is
-limited to those five plugin JAR families so persisted copies are replaced by the
-pinned artifacts; unrelated plugins are not removed.
+ViaBackwards 5.11.0, Multiverse-Core 5.8.1, and Multiverse-Portals 5.3.0 are
+also pinned. Startup cleanup is limited to those six plugin JAR families so
+persisted copies are replaced by the pinned artifacts; unrelated plugins are
+not removed.
 
 The local `UsapoEventBridge` Paper plugin is built into the server image. It
 listens for successful fishing catches, supported log/stem breaks, and natural
@@ -247,23 +248,38 @@ different pre-created network name is required. Never publish TCP/25575.
 
 ## Shared additional world
 
-Multiverse-Core 5.8.1 adds a normal survival world named `resource`, generated
-with seed `259`. It runs in the same Paper process, so the configured maximum
+Multiverse-Core 5.8.1 exposes the existing world as `world_1` and the additional
+normal survival world, generated with seed `259`, as `world_2`. These are
+Multiverse display/command aliases; the stored dimension keys and legacy names
+remain unchanged to preserve player locations and world identity. Both run in
+the same Paper process, so the configured maximum
 of 20 players applies across all worlds together. Inventory, experience,
 Ender Chest contents, and the event bridge's rewards, market, and quests remain
 shared. Multiverse-Inventories is intentionally not installed.
 
-Players travel with `/mvtp resource` and return with `/mvtp world`. The server's
+Players travel with `/mvtp world_2` and return with `/mvtp world_1`. The server's
 `permissions.yml` grants only self-teleport to those destinations, not world
 administration or teleporting other players. Existing Nether/End portal access
 remains available. The new world does not have an automatic reset schedule.
+`command.resolve-alias-name` is enabled. Fine-grained permission targets still
+use the internal legacy names `world` and `resource`, not the aliases.
+
+Multiverse-Portals supplies `/mvp` and its built-in `/mvp wand` selection tool;
+WorldEdit is not required. Operators can select the walk-through area inside a
+gate and register it with `/mvp create <portal-name> w:world_2` or `w:world_1`.
+Installation does not create gates or choose their locations. Keep portal
+creation and management limited to operators, while allowing regular players
+to use the intended gates (`portal-usage.enforce-portal-access: false`).
+`portal-usage.use-on-move` remains enabled for hollow frames, including
+glowstone frames without portal blocks. Portal definitions persist in the same
+data volume.
 
 Back up the complete data volume with the server stopped before first enabling
 Multiverse. Its persisted configuration must preserve Paper's existing game
 mode, flight, entity spawning, chat, join, and respawn behavior. Disable spawn
 adjustment for the existing dimensions before the first import. Keep the
 existing overworld's full gamerule set, difficulty, PvP state, world border,
-and Paper world overrides when initializing `resource`; setting only
+and Paper world overrides when initializing the additional world; setting only
 `keep_inventory` is insufficient. In particular, this server uses custom
 sleeping-percentage and random-tick rules.
 
