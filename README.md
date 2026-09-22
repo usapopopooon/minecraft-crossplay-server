@@ -5,8 +5,9 @@ Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 Paper 26.2 build 92 and itzg/minecraft-server 2026.8.0 remain pinned while
 Enderman and experience behavior is investigated. Geyser 2.11.3 build 1245
 supports Bedrock 26.51; Floodgate 2.2.5 build 141, ViaVersion 5.11.0,
-ViaBackwards 5.11.0, Multiverse-Core 5.8.1, and Multiverse-Portals 5.3.0 are
-also pinned. Startup cleanup is limited to those six plugin JAR families so
+ViaBackwards 5.11.0, Multiverse-Core 5.8.1, Multiverse-Portals 5.3.0, and
+Multiverse-NetherPortals 5.1.0 are also pinned. Startup cleanup is limited to
+those seven plugin JAR families and the replaced official inventory JAR so
 persisted copies are replaced by the pinned artifacts; unrelated plugins are
 not removed.
 
@@ -255,7 +256,8 @@ remain unchanged to preserve player locations and world identity. Both run in
 the same Paper process, so the configured maximum
 of 20 players applies across all worlds together. Multiverse-Inventories 5.3.6
 separates inventory/hotbar, armor, offhand, and Ender Chest into two groups:
-`world_1` plus the existing Nether/End, and `world_2` alone. Experience,
+`world_1` plus the existing Nether/End, and `world_2` plus its dedicated
+`world_2_nether` and `world_2_the_end`. Experience,
 health/food/respawn behavior, and the event bridge's rewards, market, and quests
 remain unchanged. This is not a complete ban on moving value between worlds:
 the shared market remains available by design.
@@ -275,6 +277,17 @@ Existing Nether/End portal access remains available. The new world does not
 have an automatic reset schedule.
 `command.resolve-alias-name` is enabled. Fine-grained permission targets still
 use the internal legacy names `world` and `resource`, not the aliases.
+
+Multiverse-NetherPortals 5.1.0 links normal Nether and End portals to the correct
+set of dimensions. Keep explicit bidirectional links from `world` to the
+existing `world_nether`/`world_the_end`, and from `resource` to the new
+`world_2_nether`/`world_2_the_end`. New dimensions are generated with seed 259;
+existing worlds, seeds, portal builds, and player files are not replaced.
+Set `handle-end-exit-respawn: true` in its current-version config so the dedicated
+End exit returns to `world_2`, preserving a valid bed/anchor in that same set.
+The new dimensions' fallback `respawn-world` is explicitly `resource`, because
+their names cannot auto-resolve the base world's internal name. Existing
+dimension respawn settings and players' saved respawn points are unchanged.
 
 The event bridge also rejects Multiverse destination teleports into Nether and
 End for all players, including operators. It checks the resolved destination,
@@ -311,7 +324,8 @@ form. Items are saved for the departing group and restored for the arriving
 group automatically; players do not need to remove their equipment. Canceling,
 closing, dying, disconnecting, leaving the gate, or waiting over 30 seconds does
 not move the player or restore an old item snapshot. Same-group travel,
-including normal `world_1`/Nether/End portals, needs no confirmation. The listener
+including normal Nether/End portals within either world's own set, needs no
+confirmation. The listener
 uses Paper's final resolved teleport destination, not preliminary portal-search
 coordinates. Cross-group native-portal confirmation preserves that destination
 and cooldown but does not replay vanilla's post-transition sound/ticket callback.
@@ -322,7 +336,8 @@ diagnostics record request/confirmation outcomes and validity checks by UUID,
 without recording coordinates or item contents.
 
 Java clients automatically close chest menus while touching a Nether portal.
-For the registered purple gates, the bridge checks the player's whole body
+For purple gates, including unregistered vanilla Nether portals when crossing
+inventory groups, the bridge checks the player's whole body
 (not only the feet), moves them to a checked nearby spot in the **same world**,
 then opens confirmation after the position update. This short step back does
 not switch inventories. The helper never loads chunks or changes blocks; it
@@ -330,6 +345,11 @@ requires empty body space and safe, solid support, and refuses the transfer if
 neither side is safe. Moving away or re-entering before confirmation invalidates
 the request. Arrival cooldown also covers Multiverse's `PLUGIN` teleport cause,
 preventing the destination gate from immediately returning the player.
+Ordinary `world_2` Nether/End travel now stays in its dedicated group and bypasses
+confirmation and step-back logic, just as ordinary `world_1` Nether/End travel
+does. Unusual cross-group native transfers still require confirmation and use
+the safe-outside check as a fallback. Nether and End shortcuts through Multiverse
+commands remain blocked; the linked native portal events do not use those commands.
 
 For first activation, stop the server and back up the entire data volume.
 Confirm every existing player file is in `world`, `world_nether`, or
@@ -348,10 +368,16 @@ Persist these tested Multiverse-Inventories settings in the data volume:
 `use-byte-serialization-for-inventory-data: true`, and
 `apply-playerdata-on-join: false`. `world_1_inventory` shares `[inventory]` across
 `world`, `world_nether`, and `world_the_end`; `world_2_inventory` shares
-`[inventory]` in `resource`. A `global_stats` group covers all four worlds with
+`[inventory]` across `resource`, `world_2_nether`, and `world_2_the_end`.
+A `global_stats` group covers all six worlds with
 `shares: []` and `disabled-shares: [all, -inventory]`, preventing changes to
 experience, health, food, respawn, and other non-item state. Do not replace this
 with an actively shared `all` group. No conflicting inventory shares are allowed.
+When adding dedicated dimensions, retain the existing group names and profiles;
+add only the two world memberships. Do not rerun first-activation item adoption
+or rewrite existing player files. Back up while stopped, keep the admission hold
+until links/groups are verified, and copy only appropriate rule/border/Paper
+settings from the matching existing dimensions while the new worlds are unloaded.
 
 Keep `plugins/UsapoEventBridge/inventory-migration.pending` present while
 verifying the rollout: the event bridge blocks new logins until the marker is

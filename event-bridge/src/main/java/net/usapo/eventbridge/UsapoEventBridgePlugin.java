@@ -56,7 +56,8 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
         }
         if (getServer().getPluginManager().isPluginEnabled("Multiverse-Portals")) {
             MultiversePortalsApi.whenLoaded(api -> {
-                gatePromptSafety = new GatePromptSafety(api.getPortalManager());
+                // Unusual cross-group native portals need the same safe prompt as registered gates.
+                gatePromptSafety = new GatePromptSafety(api.getPortalManager(), true);
                 travelSourceArea = location -> {
                     var portal = api.getPortalManager().getPortal(location);
                     return portal == null ? null : portal.getName();

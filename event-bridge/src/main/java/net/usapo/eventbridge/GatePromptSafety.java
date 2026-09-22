@@ -1,10 +1,12 @@
 package net.usapo.eventbridge;
 
 import java.util.List;
+import org.bukkit.Axis;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.Orientable;
 import org.bukkit.block.data.Waterlogged;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
@@ -15,11 +17,19 @@ import org.mvplugins.multiverse.portals.utils.PortalManager;
 /** Read-only, loaded-chunk checks for opening a prompt outside a purple gate surface. */
 final class GatePromptSafety implements WorldTravelConfirmation.GateSafety {
     private static final int MAX_PORTALS = 64;
+    private static final int MAX_NATIVE_PORTAL_HEIGHT = 21;
     private static final double EPSILON = 0.0000001;
+    private static final Gate UNSAFE_NATIVE_GATE = new Gate(null, false);
     private final PortalManager portals;
+    private final boolean includeNativePortals;
 
     GatePromptSafety(PortalManager portals) {
+        this(portals, false);
+    }
+
+    GatePromptSafety(PortalManager portals, boolean includeNativePortals) {
         this.portals = portals;
+        this.includeNativePortals = includeNativePortals;
     }
 
     @Override
@@ -30,11 +40,11 @@ final class GatePromptSafety implements WorldTravelConfirmation.GateSafety {
     @Override
     public Location safeOutside(Player player, Location from) {
         Gate gate = touching(player, from);
-        if (gate == null) {
+        if (gate == null || gate.bounds() == null) {
             return null;
         }
         var bounds = gate.bounds();
-        boolean xPlane = bounds.minX() == bounds.maxX();
+        boolean xPlane = gate.xPlane();
         // Leave enough clearance for a held movement key before the prompt is rendered.
         double first = xPlane ? bounds.minX() - 1.5 : bounds.minZ() - 1.5;
         double second = xPlane ? bounds.maxX() + 2.5 : bounds.maxZ() + 2.5;
@@ -62,14 +72,20 @@ final class GatePromptSafety implements WorldTravelConfirmation.GateSafety {
     }
 
     private Gate touching(Player player, Location at) {
-        if (at == null || at.getWorld() == null || at.getWorld().getEnvironment() != World.Environment.NORMAL) {
+        if (at == null || at.getWorld() == null) {
+            return null;
+        }
+        World world = at.getWorld();
+        boolean normalWorld = world.getEnvironment() == World.Environment.NORMAL;
+        if (!normalWorld && !(includeNativePortals && world.getEnvironment() == World.Environment.NETHER)) {
             return null;
         }
         BoundingBox body = bodyAt(player, at);
         if (body == null) {
             return null;
         }
-        List<MVPortal> registered = portals.getAllPortals();
+        // Keep registered normal-world gates authoritative, including their full bottom edge.
+        List<MVPortal> registered = normalWorld ? portals.getAllPortals() : List.of();
         for (int i = 0; i < Math.min(registered.size(), MAX_PORTALS); i++) {
             MVPortal portal = registered.get(i);
             if (portal.getBukkitWorld().getOrNull() != at.getWorld()) {
@@ -86,10 +102,60 @@ final class GatePromptSafety implements WorldTravelConfirmation.GateSafety {
             BoundingBox volume = new BoundingBox(bounds.minX(), bounds.minY(), bounds.minZ(),
                     bounds.maxX() + 1, bounds.maxY() + 1, bounds.maxZ() + 1);
             if (body.overlaps(volume) && containsPurple(at.getWorld(), body.clone().intersection(volume))) {
-                return new Gate(bounds);
+                return new Gate(bounds, bounds.minX() == bounds.maxX());
+            }
+        }
+        return includeNativePortals ? nativeTouching(world, body) : null;
+    }
+
+    private static Gate nativeTouching(World world, BoundingBox body) {
+        if (body.getMinY() < world.getMinHeight() || body.getMaxY() > world.getMaxHeight()
+                || !loaded(world, body)) {
+            return null;
+        }
+        // bodyAt caps every dimension at four blocks, so this scan is bounded to 125 cells.
+        for (int x = floor(body.getMinX()); x <= lastBlock(body.getMaxX()); x++) {
+            for (int y = floor(body.getMinY()); y <= lastBlock(body.getMaxY()); y++) {
+                for (int z = floor(body.getMinZ()); z <= lastBlock(body.getMaxZ()); z++) {
+                    Block block = world.getBlockAt(x, y, z);
+                    if (block.getType() != Material.NETHER_PORTAL) {
+                        continue;
+                    }
+                    Axis axis = portalAxis(block);
+                    if (axis == null) {
+                        return UNSAFE_NATIVE_GATE;
+                    }
+                    int bottom = y;
+                    for (int depth = 1; depth <= MAX_NATIVE_PORTAL_HEIGHT; depth++) {
+                        int belowY = y - depth;
+                        if (belowY < world.getMinHeight()) {
+                            return UNSAFE_NATIVE_GATE;
+                        }
+                        Block below = world.getBlockAt(x, belowY, z);
+                        if (below.getType() != Material.NETHER_PORTAL) {
+                            // Axis describes the in-plane direction, not the exit direction.
+                            return new Gate(new MultiversePortalEffects.Bounds(x, bottom, z, x, y, z),
+                                    axis == Axis.Z);
+                        }
+                        if (portalAxis(below) != axis) {
+                            return UNSAFE_NATIVE_GATE;
+                        }
+                        bottom = belowY;
+                    }
+                    // Contact is still real: an unsupported/tall surface must not open a prompt in place.
+                    return UNSAFE_NATIVE_GATE;
+                }
             }
         }
         return null;
+    }
+
+    private static Axis portalAxis(Block block) {
+        if (!(block.getBlockData() instanceof Orientable orientable)) {
+            return null;
+        }
+        Axis axis = orientable.getAxis();
+        return axis == Axis.X || axis == Axis.Z ? axis : null;
     }
 
     private static boolean containsPurple(World world, BoundingBox intersection) {
@@ -199,5 +265,5 @@ final class GatePromptSafety implements WorldTravelConfirmation.GateSafety {
         return floor(Math.nextDown(exclusiveMax));
     }
 
-    private record Gate(MultiversePortalEffects.Bounds bounds) {}
+    private record Gate(MultiversePortalEffects.Bounds bounds, boolean xPlane) {}
 }

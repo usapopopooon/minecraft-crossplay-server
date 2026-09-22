@@ -36,6 +36,22 @@ final class WorldTravelConfirmationTest {
     }
 
     @Test
+    void eachOverworldAndItsDedicatedDimensionsShareItemsButTheTwoSetsStaySeparate() {
+        List<World> first = List.of(world("overworld"), world("the_nether"), world("the_end"));
+        List<World> second = List.of(world("resource"), world("world_2_nether"), world("world_2_the_end"));
+        for (List<World> sameGroup : List.of(first, second)) {
+            for (World from : sameGroup) for (World to : sameGroup) {
+                assertFalse(WorldTravelConfirmation.changesInventoryGroup(from, to));
+            }
+        }
+        for (World from : first) for (World to : second) {
+            assertTrue(WorldTravelConfirmation.changesInventoryGroup(from, to));
+            assertTrue(WorldTravelConfirmation.changesInventoryGroup(to, from));
+        }
+        assertTrue(WorldTravelConfirmation.changesInventoryGroup(world("world_2_nether_unrelated"), second.getFirst()));
+    }
+
+    @Test
     void confirmationCancelsOriginalAndReplaysTheExactResolvedLocationOnlyOnce() {
         Fixture f = new Fixture();
         PlayerTeleportEvent original = f.attempt(PlayerTeleportEvent.TeleportCause.PLUGIN);
@@ -535,6 +551,100 @@ final class WorldTravelConfirmationTest {
         verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
         f.prompts.getLast().confirm.run();
         verify(f.player).teleportAsync(eq(f.destination), eq(PlayerTeleportEvent.TeleportCause.PLUGIN));
+    }
+
+    @Test
+    void nativeMainGroupPortalsNeverConfirmStepBackOrChangeCooldown() {
+        Fixture f = new Fixture();
+        World nether = world("the_nether"), end = world("the_end");
+        f.touchingGate = true;
+        for (World other : List.of(nether, end)) {
+            for (boolean returning : List.of(false, true)) {
+                Location from = new Location(returning ? other : f.main, 0, 65, 0);
+                Location to = new Location(returning ? f.main : other, 10, 65, 10);
+                var cause = other == nether ? PlayerTeleportEvent.TeleportCause.NETHER_PORTAL
+                        : PlayerTeleportEvent.TeleportCause.END_PORTAL;
+                PlayerPortalEvent search = new PlayerPortalEvent(f.player, from, to, cause);
+                f.guard.onTeleport(search);
+                assertFalse(search.isCancelled());
+                PlayerTeleportEvent finalExit = new PlayerTeleportEvent(f.player, from, to, cause);
+                f.guard.onTeleport(finalExit);
+                assertFalse(finalExit.isCancelled());
+            }
+        }
+        assertTrue(f.scheduled.isEmpty());
+        assertTrue(f.prompts.isEmpty());
+        verify(f.player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        verify(f.player, never()).setPortalCooldown(anyInt());
+    }
+
+    @Test
+    void nativeDedicatedWorld2PortalsNeedNoConfirmationInEitherDirection() {
+        Fixture f = new Fixture();
+        f.touchingGate = true;
+        for (String key : List.of("world_2_nether", "world_2_the_end")) {
+            World dimension = world(key);
+            var cause = key.endsWith("nether") ? PlayerTeleportEvent.TeleportCause.NETHER_PORTAL
+                    : PlayerTeleportEvent.TeleportCause.END_PORTAL;
+            for (boolean returning : List.of(false, true)) {
+                Location from = new Location(returning ? dimension : f.second, 0, 65, 0);
+                Location to = new Location(returning ? f.second : dimension, 10, 65, 10);
+                PlayerPortalEvent search = new PlayerPortalEvent(f.player, from, to, cause);
+                f.guard.onTeleport(search);
+                assertFalse(search.isCancelled());
+                PlayerTeleportEvent exit = new PlayerTeleportEvent(f.player, from, to, cause);
+                f.guard.onTeleport(exit);
+                assertFalse(exit.isCancelled());
+            }
+        }
+        assertTrue(f.scheduled.isEmpty());
+        assertTrue(f.prompts.isEmpty());
+        verify(f.player, never()).teleport(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+        verify(f.player, never()).setPortalCooldown(anyInt());
+    }
+
+    @Test
+    void nativeCrossGroupNetherPortalsStepBackAndConfirmBothDirectionsWithoutChangingItemsEarly() {
+        for (boolean returning : List.of(false, true)) {
+            Fixture f = new Fixture();
+            World nether = world("the_nether");
+            World origin = returning ? nether : f.second;
+            World target = returning ? f.second : nether;
+            f.location = new Location(origin, 0, 65, 0);
+            f.destination.setWorld(target);
+            f.touchingGate = true;
+            f.outside = new Location(origin, -2, 65, 0);
+            when(f.player.teleport(any(Location.class), eq(PlayerTeleportEvent.TeleportCause.PLUGIN)))
+                    .thenAnswer(call -> {
+                        Location proposed = call.getArgument(0);
+                        assertSame(origin, proposed.getWorld());
+                        PlayerTeleportEvent sameWorldStep = new PlayerTeleportEvent(f.player,
+                                f.location.clone(), proposed.clone(), PlayerTeleportEvent.TeleportCause.PLUGIN);
+                        f.guard.onTeleport(sameWorldStep);
+                        assertFalse(sameWorldStep.isCancelled());
+                        f.location = proposed.clone();
+                        f.touchingGate = false;
+                        return true;
+                    });
+            PlayerPortalEvent search = new PlayerPortalEvent(f.player, f.location, f.destination,
+                    PlayerTeleportEvent.TeleportCause.NETHER_PORTAL);
+            f.guard.onTeleport(search);
+            assertFalse(search.isCancelled());
+            assertTrue(f.scheduled.isEmpty());
+            assertTrue(f.attempt(PlayerTeleportEvent.TeleportCause.NETHER_PORTAL).isCancelled());
+            f.drain();
+            assertEquals(f.outside, f.location);
+            assertEquals(1, f.prompts.size());
+            verify(f.player, never()).teleportAsync(any(Location.class), any(PlayerTeleportEvent.TeleportCause.class));
+            verify(f.player, never()).getInventory();
+            verify(f.player, never()).getEnderChest();
+            f.prompts.getFirst().confirm.run();
+            assertFalse(f.attempt(PlayerTeleportEvent.TeleportCause.NETHER_PORTAL).isCancelled());
+            verify(f.player).teleportAsync(eq(f.destination), eq(PlayerTeleportEvent.TeleportCause.NETHER_PORTAL));
+            verify(f.player).setPortalCooldown(20);
+        }
     }
 
     private static World world(String key) {

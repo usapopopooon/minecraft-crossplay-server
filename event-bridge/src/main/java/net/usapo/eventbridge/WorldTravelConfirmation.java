@@ -325,7 +325,10 @@ final class WorldTravelConfirmation implements Listener {
     }
 
     private static Group group(World world) {
-        return world.getKey().toString().equals("minecraft:resource") ? Group.SECOND : Group.MAIN;
+        return switch (world.getKey().toString()) {
+            case "minecraft:resource", "minecraft:world_2_nether", "minecraft:world_2_the_end" -> Group.SECOND;
+            default -> Group.MAIN;
+        };
     }
 
     private static boolean sameLocation(Location first, Location second) {
