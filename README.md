@@ -4,9 +4,9 @@ Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 
 Paper 26.2 build 92 and itzg/minecraft-server 2026.8.0 remain pinned while
 Enderman and experience behavior is investigated. Geyser 2.11.3 build 1245
-supports Bedrock 26.51; Floodgate 2.2.5 build 141, ViaVersion 5.11.0, and
-ViaBackwards 5.11.0 are also pinned. Startup cleanup is
-limited to those four plugin JARs so persisted copies are replaced by the
+supports Bedrock 26.51; Floodgate 2.2.5 build 141, ViaVersion 5.11.0,
+ViaBackwards 5.11.0, and Multiverse-Core 5.8.1 are also pinned. Startup cleanup is
+limited to those five plugin JAR families so persisted copies are replaced by the
 pinned artifacts; unrelated plugins are not removed.
 
 The local `UsapoEventBridge` Paper plugin is built into the server image. It
@@ -244,6 +244,37 @@ docker network create minecraft-control
 Set the same strong `MINECRAFT_RCON_PASSWORD` secret on this application and
 the mc-bot application. `MINECRAFT_CONTROL_NETWORK` can be changed when a
 different pre-created network name is required. Never publish TCP/25575.
+
+## Shared additional world
+
+Multiverse-Core 5.8.1 adds a normal survival world named `resource`, generated
+with seed `259`. It runs in the same Paper process, so the configured maximum
+of 20 players applies across all worlds together. Inventory, experience,
+Ender Chest contents, and the event bridge's rewards, market, and quests remain
+shared. Multiverse-Inventories is intentionally not installed.
+
+Players travel with `/mvtp resource` and return with `/mvtp world`. The server's
+`permissions.yml` grants only self-teleport to those destinations, not world
+administration or teleporting other players. Existing Nether/End portal access
+remains available. The new world does not have an automatic reset schedule.
+
+Back up the complete data volume with the server stopped before first enabling
+Multiverse. Its persisted configuration must preserve Paper's existing game
+mode, flight, entity spawning, chat, join, and respawn behavior. Disable spawn
+adjustment for the existing dimensions before the first import. Keep the
+existing overworld's full gamerule set, difficulty, PvP state, world border,
+and Paper world overrides when initializing `resource`; setting only
+`keep_inventory` is insufficient. In particular, this server uses custom
+sleeping-percentage and random-tick rules.
+
+Paper 26.2 stores dimensions inside `world/dimensions/`. Only copy the source
+dimension's `data/minecraft/game_rules.dat`, `data/minecraft/world_border.dat`,
+and applicable `paper-world.yml` settings while the relevant worlds are
+unloaded. Never copy the source's UUID metadata, world generation settings,
+chunks, or player files into the seed-259 dimension. Validate the resulting
+seed, rule equality, startup logs, and both travel directions before opening
+the world to players. Preserve the generated world and Multiverse settings in
+the existing persistent data volume across deployments.
 
 ## World replacement
 
