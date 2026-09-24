@@ -6,6 +6,11 @@ author: usapo
 api-version: '26.2'
 softdepend: [floodgate, Multiverse-Core, Multiverse-Portals, Multiverse-Inventories]
 commands:
+  mode:
+    description: Toggles your survival/creative mode only in the normal world_2 dimension.
+    usage: /mode
+    permission: usapo.mode.use
+    permission-message: このコマンドを使用する権限がありません。
   exchange:
     description: Opens the Minecraft exchange menu.
     usage: /exchange [xp|resource|emerald-diamond|buyback|balance]
@@ -47,6 +52,8 @@ commands:
       /usapo-event-bridge resource-pack-validate <base64url-payload>
     permission: usapo.eventbridge.control
 permissions:
+  usapo.mode.use:
+    default: true
   usapo.exchange.use:
     default: true
   usapo.gacha.use:

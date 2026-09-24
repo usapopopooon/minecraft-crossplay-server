@@ -196,6 +196,10 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                     "Floodgate is unavailable; /gacha, /exchange, /market, and /quest remain available "
                             + "without Bedrock forms");
         }
+        WorldModeCommand worldModeCommand = new WorldModeCommand();
+        PluginCommand mode = Objects.requireNonNull(getCommand("mode"));
+        mode.setExecutor(worldModeCommand);
+        mode.setTabCompleter(worldModeCommand);
         ItemGachaCommand itemGachaCommand =
                 new ItemGachaCommand(itemGachaPublisher, itemGachaForms);
         PluginCommand gacha = Objects.requireNonNull(getCommand("gacha"));

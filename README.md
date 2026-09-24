@@ -266,6 +266,19 @@ separates inventory/hotbar, armor, offhand, and Ender Chest into two groups:
 and ordinary activity/advancement rewards remain unchanged. Game-mode-specific
 inventory splitting remains disabled; there is no new inventory migration.
 
+Ordinary Java and Bedrock players can use `/mode` without arguments to toggle
+their own survival/creative mode only in the normal `world_2` dimension (exact
+key `minecraft:resource`). The dedicated `usapo.mode.use` permission defaults
+to true; it grants no OP, vanilla gamemode, target-player, adventure, or
+spectator privileges. All other dimensions, including both Nether/End pairs,
+reject this command even for operators. Existing administrative commands are
+unchanged. Multiverse still applies the destination's configured mode on
+login/world entry, so returning to `world_2` starts in creative again. Toggling
+does not replace inventory, armor, offhand, Ender Chest, or experience and does
+not lift world-based economy restrictions. This command remains registered
+when activity bonuses are disabled. Installing its new plugin image requires
+one announced restart; using the command afterward requires no restart.
+
 Gacha, the player market, exchanges (including buyback/balance), and quests are
 unavailable in all three dimensions of `world_2_inventory`. The policy uses
 exact dimension keys, not aliases, permissions, or the current game mode, so
