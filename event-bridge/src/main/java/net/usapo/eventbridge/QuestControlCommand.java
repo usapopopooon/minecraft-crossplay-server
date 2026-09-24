@@ -64,6 +64,7 @@ final class QuestControlCommand implements CommandExecutor {
                     }
                     String playerName = decodeName(arguments[3]);
                     requestId = UUID.fromString(arguments[4]);
+                    requireAllowedNewAction(playerId, questId, requestId, "accepted");
                     yield actions.accept(
                             questId,
                             requestId,
@@ -90,6 +91,7 @@ final class QuestControlCommand implements CommandExecutor {
                 case "quest-cancel" -> {
                     requireFour(arguments);
                     requestId = UUID.fromString(arguments[3]);
+                    requireAllowedNewAction(playerId, questId, requestId, "cancelled");
                     yield actions.cancel(questId, requestId, playerId);
                 }
                 case "quest-invalidate" -> {
@@ -112,6 +114,18 @@ final class QuestControlCommand implements CommandExecutor {
             result(sender, requestId, questId, "invalid_request", currentStatus(questId), false);
         }
         return true;
+    }
+
+    private void requireAllowedNewAction(
+            UUID playerId, long questId, UUID requestId, String transition) {
+        // Completed operations must remain replayable after the player changes world.
+        if (repository.isProcessed(questId, requestId, transition)) {
+            return;
+        }
+        Player player = playerLookup.apply(playerId);
+        if (player != null && player.isOnline() && WorldEconomyPolicy.isRestricted(player)) {
+            throw new QuestActionException(WorldEconomyPolicy.STATUS, WorldEconomyPolicy.MESSAGE);
+        }
     }
 
     private boolean createAdminQuest(CommandSender sender, String[] arguments) {

@@ -144,6 +144,9 @@ final class QuestActions {
             publishPendingCompletionBroadcasts();
             return duplicate;
         }
+        if (WorldEconomyPolicy.isRestricted(worker)) {
+            throw failure(WorldEconomyPolicy.STATUS, WorldEconomyPolicy.MESSAGE);
+        }
         if (!quest.lastTransitionId().equals(transitionId)) {
             if (quest.status() != QuestListing.Status.ACCEPTED
                     || !worker.getUniqueId().equals(quest.workerId())) {
@@ -238,6 +241,11 @@ final class QuestActions {
             } catch (IOException | RuntimeException error) {
                 // 期限切れや保存失敗では、下で安全にアイテムを返す。
             }
+        }
+        // A persisted submission may reconcile without touching today's inventory. A
+        // refund must wait for the unrestricted inventory group instead of crossing it.
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
         }
         if (!restorePendingSubmission(player, pending)) {
             player.sendMessage("納品アイテムを返す空きがありません。空きを作って /quest を再実行してください。");

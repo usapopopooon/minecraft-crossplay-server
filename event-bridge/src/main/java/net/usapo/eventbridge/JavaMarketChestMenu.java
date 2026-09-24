@@ -25,6 +25,9 @@ final class JavaMarketChestMenu implements JavaMarketMenuGateway {
 
     @Override
     public boolean open(Player player, Consumer<MarketFormAction> actionHandler) {
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         Map<Integer, JavaChestMenus.MenuEntry> entries = new HashMap<>();
         entries.put(10, JavaChestMenus.action(
                 Material.CHEST,

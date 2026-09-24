@@ -37,6 +37,9 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
         if (!floodgate.isFloodgatePlayer(player.getUniqueId())) {
             return false;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         SimpleForm form = SimpleForm.builder()
                 .title("資源交換所")
                 .content("交換内容を選んでください。残高と処理結果は本人だけに表示されます。")
@@ -46,7 +49,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 .button("資源をXPで売却")
                 .button("XP残高を確認")
                 .button("閉じる")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     switch (response.clickedButtonId()) {
                         case 0 -> openOptions(
                                 player,
@@ -85,7 +88,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 group.itemName() + "\n" + group.amountsLabel()));
         SimpleForm form = builder
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < groups.size()) {
                         ExchangeCatalog.ResourceGroup group = groups.get(selected);
@@ -115,7 +118,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 .button("エメラルド\n所持" + emeraldCount + "個 / 64個 → 500 XP")
                 .button("資材\n土・砂・砂岩・深層岩など")
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     switch (response.clickedButtonId()) {
                         case 0 -> {
                             if (emeraldCount >= MaterialBuybackCatalog.STACK_SIZE) {
@@ -143,7 +146,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                 .content("通常のエメラルドを64個以上インベントリへ入れてください。"
                         + "\n64個 → 500サーバーXP")
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(
+                .validResultHandler(response -> runOnMain(player,
                         () -> openBuybackCategories(player, selectionHandler)))
                 .build();
         sendFormOrFallback(player, form);
@@ -162,7 +165,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                             + "インベントリへ入れてください。\n"
                             + "対象: 土・砂・砂岩・深層岩・深層岩の丸石・凝灰岩")
                     .button("戻る")
-                    .validResultHandler(response -> runOnMain(
+                    .validResultHandler(response -> runOnMain(player,
                             () -> openBuybackCategories(player, selectionHandler)))
                     .build();
             sendFormOrFallback(player, form);
@@ -183,7 +186,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
         });
         SimpleForm form = builder
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < available.size()) {
                         openBuybackAmounts(
@@ -223,7 +226,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
         });
         SimpleForm form = builder
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < options.size()) {
                         ExchangeSelection selection = MaterialBuybackCatalog.selection(
@@ -257,7 +260,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
         options.forEach(option -> builder.button(option.description()));
         SimpleForm form = builder
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < options.size()) {
                         ExchangeSelection selection = options.get(selected);
@@ -298,7 +301,7 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
                         ? "売却する"
                         : "交換する")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         if (player.isOnline()) {
                             selectionHandler.accept(selection);
@@ -317,7 +320,11 @@ final class FloodgateExchangeFormGateway implements BedrockExchangeFormGateway {
         }
     }
 
-    private void runOnMain(Runnable operation) {
-        plugin.getServer().getScheduler().runTask(plugin, operation);
+    private void runOnMain(Player player, Runnable operation) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && !WorldEconomyPolicy.denyIfRestricted(player)) {
+                operation.run();
+            }
+        });
     }
 }

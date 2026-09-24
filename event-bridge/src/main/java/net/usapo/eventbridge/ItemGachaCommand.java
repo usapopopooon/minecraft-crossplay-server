@@ -45,6 +45,9 @@ final class ItemGachaCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("このコマンドはゲーム内のプレイヤーだけが使用できます。");
             return true;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         if (arguments.length == 0) {
             if (!forms.open(player, selection -> submit(
                     player, selection.category(), selection.kind()))) {
@@ -75,6 +78,9 @@ final class ItemGachaCommand implements CommandExecutor, TabCompleter {
 
     private void submit(Player player, ItemGachaCategory category, ItemGachaKind kind) {
         if (!player.isOnline()) {
+            return;
+        }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
             return;
         }
         long now = nowMillis.getAsLong();

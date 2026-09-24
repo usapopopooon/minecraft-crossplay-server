@@ -12,14 +12,21 @@ final class FloodgateGachaFormGateway implements BedrockGachaFormGateway {
     private final FloodgateApi floodgate;
 
     FloodgateGachaFormGateway(JavaPlugin plugin) {
+        this(plugin, FloodgateApi.getInstance());
+    }
+
+    FloodgateGachaFormGateway(JavaPlugin plugin, FloodgateApi floodgate) {
         this.plugin = plugin;
-        this.floodgate = FloodgateApi.getInstance();
+        this.floodgate = floodgate;
     }
 
     @Override
     public boolean open(Player player, Consumer<ItemGachaSelection> selectionHandler) {
         if (!floodgate.isFloodgatePlayer(player.getUniqueId())) {
             return false;
+        }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
         }
         SimpleForm form = SimpleForm.builder()
                 .title("Minecraft アイテムガチャ")
@@ -30,7 +37,7 @@ final class FloodgateGachaFormGateway implements BedrockGachaFormGateway {
                 .button("冒険")
                 .button("装備・強化")
                 .button("閉じる")
-                .validResultHandler(response -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     ItemGachaCategory category = switch (response.clickedButtonId()) {
                         case 0 -> ItemGachaCategory.ALL;
                         case 1 -> ItemGachaCategory.RESOURCES;
@@ -39,9 +46,9 @@ final class FloodgateGachaFormGateway implements BedrockGachaFormGateway {
                         default -> null;
                     };
                     if (category != null) {
-                        runOnMain(() -> openKindSelection(player, category, selectionHandler));
+                        openKindSelection(player, category, selectionHandler);
                     }
-                })
+                }))
                 .build();
         return floodgate.sendForm(player.getUniqueId(), form);
     }
@@ -59,19 +66,18 @@ final class FloodgateGachaFormGateway implements BedrockGachaFormGateway {
                 .button("通常ガチャ\n100 XP")
                 .button("R以上確定ガチャ\n1,000 XP")
                 .button("戻る")
-                .validResultHandler(response -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     ItemGachaKind kind = switch (response.clickedButtonId()) {
                         case 0 -> ItemGachaKind.NORMAL;
                         case 1 -> ItemGachaKind.PREMIUM;
                         default -> null;
                     };
                     if (kind != null) {
-                        runOnMain(() -> openConfirmation(
-                                player, category, kind, selectionHandler));
+                        openConfirmation(player, category, kind, selectionHandler);
                     } else {
-                        runOnMain(() -> open(player, selectionHandler));
+                        open(player, selectionHandler);
                     }
-                })
+                }))
                 .build();
         if (!floodgate.sendForm(player.getUniqueId(), form)) {
             player.sendMessage("フォームを表示できませんでした。コマンド入力をお試しください。");
@@ -92,14 +98,13 @@ final class FloodgateGachaFormGateway implements BedrockGachaFormGateway {
                         + "通常とR以上確定を合わせて1日3回までです。")
                 .button1(kind.costXp() + " XPで引く")
                 .button2("戻る")
-                .validResultHandler(response -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
-                        runOnMain(() -> selectionHandler.accept(
-                                new ItemGachaSelection(category, kind)));
+                        selectionHandler.accept(new ItemGachaSelection(category, kind));
                     } else {
-                        runOnMain(() -> openKindSelection(player, category, selectionHandler));
+                        openKindSelection(player, category, selectionHandler);
                     }
-                })
+                }))
                 .build();
         if (!floodgate.sendForm(player.getUniqueId(), confirmation)) {
             String kindArgument = kind == ItemGachaKind.NORMAL ? "normal" : "rare";
@@ -111,7 +116,11 @@ final class FloodgateGachaFormGateway implements BedrockGachaFormGateway {
         }
     }
 
-    private void runOnMain(Runnable operation) {
-        plugin.getServer().getScheduler().runTask(plugin, operation);
+    private void runOnMain(Player player, Runnable operation) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && !WorldEconomyPolicy.denyIfRestricted(player)) {
+                operation.run();
+            }
+        });
     }
 }

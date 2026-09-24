@@ -40,6 +40,7 @@ final class JavaChestMenus implements Listener {
         if (!player.isOnline()) {
             return false;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) return true;
         try {
             MenuHolder holder = new MenuHolder(player.getUniqueId(), entries);
             Inventory inventory = Bukkit.createInventory(
@@ -189,6 +190,7 @@ final class JavaChestMenus implements Listener {
                 || !holder.playerId().equals(player.getUniqueId())) {
             return;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) return;
         int rawSlot = event.getRawSlot();
         if (rawSlot < 0 || rawSlot >= top.getSize()) {
             return;
@@ -264,7 +266,7 @@ final class JavaChestMenus implements Listener {
 
     private void runLater(Player player, Runnable action) {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
+            if (player.isOnline() && !WorldEconomyPolicy.denyIfRestricted(player)) {
                 action.run();
             }
         });

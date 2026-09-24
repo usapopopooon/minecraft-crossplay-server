@@ -78,6 +78,9 @@ final class MaterialBuybackCommand implements CommandExecutor {
                     requestId,
                     itemId,
                     itemCount);
+            if (result.status() == MaterialBuybackExchange.Status.WORLD_RESTRICTED) {
+                player.sendMessage(WorldEconomyPolicy.MESSAGE);
+            }
             sendResult(
                     sender,
                     requestId,

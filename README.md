@@ -250,17 +250,47 @@ different pre-created network name is required. Never publish TCP/25575.
 ## Additional world and inventory groups
 
 Multiverse-Core 5.8.1 exposes the existing world as `world_1` and the additional
-normal survival world, generated with seed `259`, as `world_2`. These are
+normal world, generated with seed `259`, as `world_2`. Only the normal
+`world_2` dimension uses creative mode; `world_1` and all four Nether/End
+dimensions remain survival. Enable `world.enforce-gamemode` so joining or
+changing worlds applies the destination's game mode (operators are not exempt
+unless an explicit `mv.bypass.gamemode.<worldname>` permission is granted).
+These are
 Multiverse display/command aliases; the stored dimension keys and legacy names
 remain unchanged to preserve player locations and world identity. Both run in
 the same Paper process, so the configured maximum
 of 20 players applies across all worlds together. Multiverse-Inventories 5.3.6
 separates inventory/hotbar, armor, offhand, and Ender Chest into two groups:
 `world_1` plus the existing Nether/End, and `world_2` plus its dedicated
-`world_2_nether` and `world_2_the_end`. Experience,
-health/food/respawn behavior, and the event bridge's rewards, market, and quests
-remain unchanged. This is not a complete ban on moving value between worlds:
-the shared market remains available by design.
+`world_2_nether` and `world_2_the_end`. Experience, health/food/respawn behavior,
+and ordinary activity/advancement rewards remain unchanged. Game-mode-specific
+inventory splitting remains disabled; there is no new inventory migration.
+
+Gacha, the player market, exchanges (including buyback/balance), and quests are
+unavailable in all three dimensions of `world_2_inventory`. The policy uses
+exact dimension keys, not aliases, permissions, or the current game mode, so
+carrying creative items into the survival Nether/End cannot bypass it. Commands
+and Java/Bedrock menu callbacks show a Japanese unavailable message. Callbacks
+recheck the player's world after scheduling, including menus opened before
+travel. The companion mc-bot performs the same check for Discord controls and
+queued requests before spending, and guards raw item/XP delivery in the same
+server command. Internal item transactions reject new work with
+`world_restricted` but still reconcile already-applied request IDs. Automatic
+account-revocation cleanup and stored escrow recovery remain available without
+new item delivery in the restricted group. `world_1` and its Nether/End retain
+the existing four features.
+
+This is not complete economic isolation: Minecraft experience and ordinary
+activity/advancement rewards are still shared, as explicitly left outside this
+change. Do not silently change those policies or existing inventory profiles.
+
+For rollout, deploy both the Paper plugin and companion mc-bot before enabling
+creative mode. With players held offline and configurations backed up, use
+`mv modify resource set gamemode creative`, `mv config enforce-gamemode true`,
+and `mv config gamemode-and-flight-enforce-delay 0`. Applying the game mode
+in the world-change event prevents a creative-mode tick in a survival world.
+Confirm the other five mode settings remain survival, the inventory groups and
+gamerules are unchanged, and the normal travel confirmation still works.
 
 The image packages the checksum-pinned official Multiverse-Inventories 5.3.6
 release with only its embedded `com.viaversion.nbt` package relocated to a

@@ -130,6 +130,9 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("このコマンドはゲーム内のプレイヤーだけが使用できます。");
             return true;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         if (arguments.length == 0) {
             if (!forms.open(player, selection -> submit(player, selection))
                     && !menus.open(player, selection -> submit(player, selection))) {
@@ -219,6 +222,9 @@ final class ExchangeCommand implements CommandExecutor, TabCompleter {
 
     private void submit(Player player, ExchangeSelection selection) {
         if (!player.isOnline()) {
+            return;
+        }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
             return;
         }
         if (selection.kind() == ExchangeKind.MATERIAL_BUYBACK

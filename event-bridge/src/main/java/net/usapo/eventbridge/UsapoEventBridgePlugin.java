@@ -177,7 +177,9 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                         marketTransferCommand,
                         questControlCommand,
                         materialBuybackCommand,
-                        resourceCatalogCommand));
+                        resourceCatalogCommand,
+                        new EconomyAccessCommand(playerId -> getServer().getPlayer(playerId))));
+        getLogger().info("Gacha, market, exchange and quests disabled in the world_2 inventory group");
         ItemGachaRequestPublisher itemGachaPublisher =
                 new ItemGachaRequestPublisher(getLogger()::info);
         BedrockGachaFormGateway itemGachaForms = (player, selectionHandler) -> false;

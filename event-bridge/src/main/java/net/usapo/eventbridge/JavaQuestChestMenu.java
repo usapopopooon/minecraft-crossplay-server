@@ -31,6 +31,9 @@ final class JavaQuestChestMenu implements JavaQuestMenuGateway {
 
     @Override
     public boolean open(Player player, Consumer<QuestFormAction> actionHandler) {
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         String encodedDraft = player.getPersistentDataContainer()
                 .get(draftKey, PersistentDataType.STRING);
         QuestDraft draft = decodeDraft(encodedDraft);

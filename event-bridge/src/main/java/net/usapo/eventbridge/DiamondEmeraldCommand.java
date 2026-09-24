@@ -76,6 +76,9 @@ final class DiamondEmeraldCommand implements CommandExecutor {
 
         EmeraldDiamondExchange.Result result =
                 exchangeOperation.exchange(player, requestId, diamondCount);
+        if (result.status() == EmeraldDiamondExchange.Status.WORLD_RESTRICTED) {
+            player.sendMessage(WorldEconomyPolicy.MESSAGE);
+        }
         if (result.status() == EmeraldDiamondExchange.Status.COMPLETED && !result.duplicate()) {
             successNotifier.notify(requestId, player, result.diamondCount(), result.emeraldCount());
         }

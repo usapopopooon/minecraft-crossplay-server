@@ -41,6 +41,9 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
         if (!player.isOnline()) {
             return true;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         Map<Integer, Runnable> actions = new LinkedHashMap<>();
         Inventory inventory = create(player, "資源交換所", actions);
         add(inventory, actions, 10, icon(
@@ -400,7 +403,16 @@ final class JavaExchangeChestMenu implements JavaExchangeMenuGateway, Listener {
         }
         Runnable action = holder.actions().get(event.getRawSlot());
         if (action != null) {
-            plugin.getServer().getScheduler().runTask(plugin, action);
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (!player.isOnline()) {
+                    return;
+                }
+                if (WorldEconomyPolicy.denyIfRestricted(player)) {
+                    player.closeInventory();
+                    return;
+                }
+                action.run();
+            });
         }
     }
 

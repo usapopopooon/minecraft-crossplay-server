@@ -16,6 +16,7 @@ final class MaterialBuybackExchange {
 
     enum Status {
         COMPLETED("completed"),
+        WORLD_RESTRICTED(WorldEconomyPolicy.STATUS),
         INSUFFICIENT_ITEMS("insufficient_items");
 
         private final String wireName;
@@ -46,6 +47,10 @@ final class MaterialBuybackExchange {
     record CompletedRequest(String itemId, int itemCount) {}
 
     interface PlayerState {
+        default boolean worldRestricted() {
+            return false;
+        }
+
         InventorySlot[] storageContents();
 
         CompletedRequest completedRequest(UUID requestId);
@@ -67,6 +72,9 @@ final class MaterialBuybackExchange {
                 throw new IllegalArgumentException("request ID was reused for another buyback");
             }
             return new Result(Status.COMPLETED, itemId, itemCount, true);
+        }
+        if (state.worldRestricted()) {
+            return new Result(Status.WORLD_RESTRICTED, itemId, itemCount, false);
         }
 
         InventorySlot[] planned = state.storageContents().clone();
@@ -121,6 +129,11 @@ final class MaterialBuybackExchange {
         BukkitPlayerState(Player player, NamespacedKey historyKey) {
             this.player = player;
             this.historyKey = historyKey;
+        }
+
+        @Override
+        public boolean worldRestricted() {
+            return WorldEconomyPolicy.isRestricted(player);
         }
 
         @Override

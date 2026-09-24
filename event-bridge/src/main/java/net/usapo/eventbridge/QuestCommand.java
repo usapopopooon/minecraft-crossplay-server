@@ -79,6 +79,9 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
             sender.sendMessage("このコマンドはゲーム内のプレイヤーだけが使用できます。");
             return true;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         deliverNotices(player);
         if (recoverPendingReward(player) || actions.recoverPendingSubmission(player)) {
             return true;
@@ -107,7 +110,7 @@ final class QuestCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private void handleFormAction(Player player, QuestFormAction action) {
-        if (!player.isOnline()) {
+        if (!player.isOnline() || WorldEconomyPolicy.denyIfRestricted(player)) {
             return;
         }
         if (recoverPendingReward(player) || actions.recoverPendingSubmission(player)) {

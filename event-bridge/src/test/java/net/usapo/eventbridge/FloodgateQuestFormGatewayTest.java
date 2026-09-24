@@ -18,6 +18,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Server;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -39,6 +40,29 @@ import org.geysermc.floodgate.api.FloodgateApi;
 import org.junit.jupiter.api.Test;
 
 final class FloodgateQuestFormGatewayTest {
+    @Test
+    void staleBedrockMenuCannotNavigateAfterEnteringAnyRestrictedWorld() throws Exception {
+        for (String dimension : List.of("resource", "world_2_nether", "world_2_the_end")) {
+            QuestRepository repository = mock(QuestRepository.class);
+            Harness harness = harness(repository, UUID.randomUUID(), null, null);
+            List<QuestFormAction> actions = new ArrayList<>();
+            assertTrue(harness.gateway().open(harness.player(), actions::add));
+            SimpleForm root = assertInstanceOf(SimpleForm.class, harness.forms().getFirst());
+            World world = mock(World.class);
+            when(world.getKey()).thenReturn(NamespacedKey.minecraft(dimension));
+            when(harness.player().getWorld()).thenReturn(world);
+
+            click(root, 0);
+            click(root, 1);
+            click(root, 2);
+
+            assertEquals(1, harness.forms().size());
+            assertTrue(actions.isEmpty());
+            assertTrue(harness.gateway().open(harness.player(), actions::add));
+            assertEquals(1, harness.forms().size());
+        }
+    }
+
     @Test
     void publicationConfirmationShowsTheExactEscrow() {
         QuestDraft draft = new QuestDraft("minecraft:ancient_debris", "古代の残骸", 8, 24);

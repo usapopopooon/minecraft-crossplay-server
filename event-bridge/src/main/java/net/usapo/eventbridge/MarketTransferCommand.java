@@ -139,6 +139,11 @@ final class MarketTransferCommand implements CommandExecutor {
             return;
         }
 
+        if (WorldEconomyPolicy.isRestricted(recipient)) {
+            result(sender, transferId, listingId,
+                    WorldEconomyPolicy.STATUS, statusName(listing), false);
+            return;
+        }
         PlayerInventory inventory = recipient.getInventory();
         ItemStack item = listing.item();
         if (!MarketItems.canFit(inventory, item)) {

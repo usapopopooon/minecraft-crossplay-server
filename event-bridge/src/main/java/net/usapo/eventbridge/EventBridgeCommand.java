@@ -13,6 +13,7 @@ final class EventBridgeCommand implements CommandExecutor {
     private final QuestControlCommand questControl;
     private final MaterialBuybackCommand materialBuyback;
     private final ResourceCatalogCommand resourceCatalog;
+    private final EconomyAccessCommand economyAccess;
 
     EventBridgeCommand(
             VoiceBonusCommand voiceBonus,
@@ -22,6 +23,19 @@ final class EventBridgeCommand implements CommandExecutor {
             QuestControlCommand questControl,
             MaterialBuybackCommand materialBuyback,
             ResourceCatalogCommand resourceCatalog) {
+        this(voiceBonus, emeraldDiamond, diamondEmerald, marketTransfer, questControl,
+                materialBuyback, resourceCatalog, new EconomyAccessCommand(ignored -> null));
+    }
+
+    EventBridgeCommand(
+            VoiceBonusCommand voiceBonus,
+            EmeraldDiamondCommand emeraldDiamond,
+            DiamondEmeraldCommand diamondEmerald,
+            MarketTransferCommand marketTransfer,
+            QuestControlCommand questControl,
+            MaterialBuybackCommand materialBuyback,
+            ResourceCatalogCommand resourceCatalog,
+            EconomyAccessCommand economyAccess) {
         this.voiceBonus = voiceBonus;
         this.emeraldDiamond = emeraldDiamond;
         this.diamondEmerald = diamondEmerald;
@@ -29,6 +43,7 @@ final class EventBridgeCommand implements CommandExecutor {
         this.questControl = questControl;
         this.materialBuyback = materialBuyback;
         this.resourceCatalog = resourceCatalog;
+        this.economyAccess = economyAccess;
     }
 
     @Override
@@ -37,6 +52,9 @@ final class EventBridgeCommand implements CommandExecutor {
             @NotNull Command command,
             @NotNull String label,
             @NotNull String[] arguments) {
+        if (arguments.length > 0 && arguments[0].equals("economy-access")) {
+            return economyAccess.onCommand(sender, command, label, arguments);
+        }
         if (arguments.length > 0 && arguments[0].equals("voice-bonus")) {
             return voiceBonus.onCommand(sender, command, label, arguments);
         }

@@ -24,6 +24,7 @@ final class EmeraldDiamondExchange {
         COMPLETED("completed"),
         INSUFFICIENT_EMERALDS("insufficient_emeralds"),
         INSUFFICIENT_DIAMONDS("insufficient_diamonds"),
+        WORLD_RESTRICTED(WorldEconomyPolicy.STATUS),
         INVENTORY_FULL("inventory_full");
 
         private final String wireName;
@@ -59,6 +60,10 @@ final class EmeraldDiamondExchange {
     }
 
     interface PlayerState {
+        default boolean worldRestricted() {
+            return false;
+        }
+
         InventorySlot[] storageContents();
 
         void setStorageContents(InventorySlot[] contents);
@@ -118,6 +123,9 @@ final class EmeraldDiamondExchange {
                 throw new IllegalArgumentException("request ID was already used with another rate");
             }
             return new Result(Status.COMPLETED, emeraldCount, diamondCount, true);
+        }
+        if (state.worldRestricted()) {
+            return new Result(Status.WORLD_RESTRICTED, emeraldCount, diamondCount, false);
         }
 
         InventorySlot[] planned = state.storageContents().clone();
@@ -204,6 +212,11 @@ final class EmeraldDiamondExchange {
         BukkitPlayerState(Player player, NamespacedKey historyKey) {
             this.player = player;
             this.historyKey = historyKey;
+        }
+
+        @Override
+        public boolean worldRestricted() {
+            return WorldEconomyPolicy.isRestricted(player);
         }
 
         @Override

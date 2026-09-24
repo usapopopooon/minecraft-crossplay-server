@@ -15,6 +15,8 @@ import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.Server;
+import org.bukkit.World;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -31,6 +33,30 @@ import org.geysermc.floodgate.api.FloodgateApi;
 import org.junit.jupiter.api.Test;
 
 final class FloodgateMarketFormGatewayTest {
+    @Test
+    void staleBedrockMenuCannotNavigateOrClaimAfterEnteringAnyRestrictedWorld() throws Exception {
+        for (String dimension : List.of("resource", "world_2_nether", "world_2_the_end")) {
+            MarketRepository repository = mock(MarketRepository.class);
+            Harness harness = harness(repository, UUID.randomUUID(), null);
+            List<MarketFormAction> actions = new ArrayList<>();
+            assertTrue(harness.gateway().open(harness.player(), actions::add));
+            SimpleForm root = assertInstanceOf(SimpleForm.class, harness.forms().getFirst());
+            World world = mock(World.class);
+            when(world.getKey()).thenReturn(NamespacedKey.minecraft(dimension));
+            when(harness.player().getWorld()).thenReturn(world);
+
+            click(root, 0);
+            click(root, 3);
+            click(root, 4);
+
+            assertEquals(1, harness.forms().size());
+            assertTrue(actions.isEmpty());
+            // Direct gateway entry is also consumed without falling back to another UI.
+            assertTrue(harness.gateway().open(harness.player(), actions::add));
+            assertEquals(1, harness.forms().size());
+        }
+    }
+
     @Test
     void formCopyIdentifiesServerXp() {
         assertEquals(

@@ -36,6 +36,9 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
 
     @Override
     public boolean open(Player player, Consumer<MarketFormAction> actionHandler) {
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         if (!floodgate.isFloodgatePlayer(player.getUniqueId())) {
             return false;
         }
@@ -49,7 +52,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                 .button("返却受取箱（" + claims + "件）")
                 .button(BALANCE_BUTTON_LABEL)
                 .button("閉じる")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     switch (response.clickedButtonId()) {
                         case 0 -> openListings(player, actionHandler, 1);
                         case 1 -> openSell(player, actionHandler);
@@ -106,7 +109,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
         SimpleForm form = builder
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < handlers.size()) {
                         handlers.get(selected).run();
@@ -141,7 +144,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                         + "\n\nこの商品を購入しますか？")
                 .button1("購入する")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(new MarketFormAction(
                                 MarketFormAction.Kind.BUY,
@@ -191,7 +194,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
         SimpleForm form = builder
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < handlers.size()) {
                         handlers.get(selected).run();
@@ -217,7 +220,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         CustomForm form = CustomForm.builder()
                 .title("その他の出品価格")
                 .input(label, "例: 3000")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     String input = response.asInput(0).trim();
                     try {
                         int priceXp = Integer.parseInt(input);
@@ -252,7 +255,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                         + "\n\nこの内容で出品しますか？")
                 .button1("この内容で出品")
                 .button2("価格を選び直す")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (!response.clickedFirst()) {
                         openSellPriceChoices(player, shownItem, actionHandler);
                         return;
@@ -309,7 +312,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
         SimpleForm form = builder
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < handlers.size()) {
                         handlers.get(selected).run();
@@ -342,7 +345,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                         + "\n\n自分の出品は購入できません。")
                 .button("取り消し内容を確認")
                 .button("商品一覧へ戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedButtonId() == 0) {
                         openCancelConfirmation(player, listing.id(), actionHandler, page, false);
                     } else {
@@ -376,7 +379,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                         + "\n\n取り消すとアイテムが返却されます。")
                 .button1("出品を取り消す")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(new MarketFormAction(
                                 MarketFormAction.Kind.CANCEL,
@@ -404,7 +407,7 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
                 .title(title)
                 .content(content)
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(back))
+                .validResultHandler(response -> runOnMain(player, back))
                 .build();
         sendForm(player, form);
     }
@@ -440,7 +443,11 @@ final class FloodgateMarketFormGateway implements BedrockMarketFormGateway {
         }
     }
 
-    private void runOnMain(Runnable operation) {
-        plugin.getServer().getScheduler().runTask(plugin, operation);
+    private void runOnMain(Player player, Runnable operation) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && !WorldEconomyPolicy.denyIfRestricted(player)) {
+                operation.run();
+            }
+        });
     }
 }

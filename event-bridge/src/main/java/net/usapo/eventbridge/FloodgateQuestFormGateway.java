@@ -42,6 +42,9 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
 
     @Override
     public boolean open(Player player, Consumer<QuestFormAction> actionHandler) {
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         if (!floodgate.isFloodgatePlayer(player.getUniqueId())) {
             return false;
         }
@@ -83,7 +86,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         builder.button("閉じる");
         handlers.add(() -> {});
         SimpleForm form = builder
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < handlers.size()) {
                         handlers.get(selected).run();
@@ -129,7 +132,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
         SimpleForm form = builder
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < handlers.size()) {
                         handlers.get(selected).run();
@@ -150,7 +153,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                         + quest.fulfillmentHours() + "時間以内に一括納品しますか？")
                 .button1("受注する")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(action(QuestFormAction.Kind.ACCEPT, quest.id()));
                     } else {
@@ -175,7 +178,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         CustomForm form = creationForm(
                 MarketItems.questDisplayName(held),
                 held.getMaxStackSize(),
-                action -> runOnMain(() -> {
+                action -> runOnMain(player, () -> {
                     if (!shownItem.equals(player.getInventory().getItemInMainHand())) {
                         openInfo(
                                 player,
@@ -246,7 +249,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .content(publicationConfirmation(draft, reward))
                 .button1("報酬を預けて公開")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(action(QuestFormAction.Kind.CONFIRM, 0));
                     } else {
@@ -297,7 +300,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         builder.button("戻る");
         handlers.add(() -> open(player, actionHandler));
         SimpleForm form = builder
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     int selected = response.clickedButtonId();
                     if (selected >= 0 && selected < handlers.size()) {
                         handlers.get(selected).run();
@@ -319,7 +322,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                     .content(label(quest) + "\n\n取り消すと報酬は受取箱へ戻ります。")
                     .button1("取り消す")
                     .button2("戻る")
-                    .validResultHandler(response -> runOnMain(() -> {
+                    .validResultHandler(response -> runOnMain(player, () -> {
                         if (response.clickedFirst()) {
                             actionHandler.accept(action(
                                     QuestFormAction.Kind.CANCEL, quest.id()));
@@ -339,7 +342,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                     .button("納品する")
                     .button("辞退して再募集する")
                     .button("戻る")
-                    .validResultHandler(response -> runOnMain(() -> {
+                    .validResultHandler(response -> runOnMain(player, () -> {
                         switch (response.clickedButtonId()) {
                             case 0 -> openSubmit(player, quest, actionHandler, page);
                             case 1 -> openAbandon(player, quest, actionHandler, page);
@@ -354,7 +357,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .title("受注済みの依頼")
                 .content(label(quest) + "\n受注済みの依頼は依頼者から取り消せません。")
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(() -> openMine(player, actionHandler, page)))
+                .validResultHandler(response -> runOnMain(player, () -> openMine(player, actionHandler, page)))
                 .build();
         sendForm(player, form);
     }
@@ -370,7 +373,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                         + " を納品し、報酬 " + quest.rewardLabel() + " を受取箱へ入れますか？")
                 .button1("納品する")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(action(QuestFormAction.Kind.SUBMIT, quest.id()));
                     } else {
@@ -391,7 +394,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .content("#" + quest.id() + " を辞退すると、ほかの人が受注できる状態へ戻ります。")
                 .button1("辞退する")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(action(QuestFormAction.Kind.ABANDON, quest.id()));
                     } else {
@@ -416,7 +419,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .content(content)
                 .button1("下書きを破棄する")
                 .button2("戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedFirst()) {
                         actionHandler.accept(action(QuestFormAction.Kind.DISCARD, 0));
                     } else {
@@ -448,7 +451,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .content(label(current) + "\n\n自分の依頼は受注できません。")
                 .button("取り消し内容を確認")
                 .button("募集一覧へ戻る")
-                .validResultHandler(response -> runOnMain(() -> {
+                .validResultHandler(response -> runOnMain(player, () -> {
                     if (response.clickedButtonId() == 0) {
                         openMineAction(player, current, actionHandler, page);
                     } else {
@@ -464,7 +467,7 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
                 .title(title)
                 .content(content)
                 .button("戻る")
-                .validResultHandler(response -> runOnMain(back))
+                .validResultHandler(response -> runOnMain(player, back))
                 .build();
         sendForm(player, form);
     }
@@ -510,7 +513,11 @@ final class FloodgateQuestFormGateway implements BedrockQuestFormGateway {
         }
     }
 
-    private void runOnMain(Runnable operation) {
-        plugin.getServer().getScheduler().runTask(plugin, operation);
+    private void runOnMain(Player player, Runnable operation) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && !WorldEconomyPolicy.denyIfRestricted(player)) {
+                operation.run();
+            }
+        });
     }
 }

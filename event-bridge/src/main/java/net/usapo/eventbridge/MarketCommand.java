@@ -81,6 +81,9 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             sender.sendMessage("このコマンドはゲーム内のプレイヤーだけが使用できます。");
             return true;
         }
+        if (WorldEconomyPolicy.denyIfRestricted(player)) {
+            return true;
+        }
         if (recoverPendingEscrow(player)) {
             return true;
         }
@@ -116,7 +119,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private void handleFormAction(Player player, MarketFormAction action) {
-        if (!player.isOnline()) {
+        if (!player.isOnline() || WorldEconomyPolicy.denyIfRestricted(player)) {
             return;
         }
         if (recoverPendingEscrow(player)) {
