@@ -37,6 +37,7 @@ commands:
       /usapo-event-bridge quest-accept <quest> <player-uuid> <player-name-base64> <request-uuid>
       /usapo-event-bridge quest-submit <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-abandon <quest> <player-uuid> <request-uuid>
+      /usapo-event-bridge quest-user-abandon <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-cancel <quest> <player-uuid> <request-uuid>
       /usapo-event-bridge quest-invalidate <quest> <owner-uuid> <request-uuid>
       /usapo-event-bridge quest-admin-create <request-item> <count> <reward-item> <count> <hours> <request-uuid>

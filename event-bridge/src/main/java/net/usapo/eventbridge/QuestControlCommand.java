@@ -82,9 +82,14 @@ final class QuestControlCommand implements CommandExecutor {
                     }
                     yield actions.submit(questId, requestId, player, System.currentTimeMillis());
                 }
-                case "quest-abandon" -> {
+                case "quest-abandon", "quest-user-abandon" -> {
                     requireFour(arguments);
                     requestId = UUID.fromString(arguments[3]);
+                    // User buttons recheck at execution; account-revocation cleanup
+                    // keeps the existing unrestricted, idempotent abandon action.
+                    if (action.equals("quest-user-abandon")) {
+                        requireAllowedNewAction(playerId, questId, requestId, "abandoned");
+                    }
                     yield actions.releaseAssignment(
                             questId, requestId, playerId, System.currentTimeMillis());
                 }

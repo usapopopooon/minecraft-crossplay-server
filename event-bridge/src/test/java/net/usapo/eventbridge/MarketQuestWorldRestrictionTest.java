@@ -321,6 +321,47 @@ final class MarketQuestWorldRestrictionTest {
         verifyNoInteractions(player);
     }
 
+    @Test
+    void userAbandonRechecksCurrentWorldWhileCleanupStillWorks() {
+        for (String dimension : RESTRICTED) {
+            Player player = player(dimension);
+            QuestRepository repository = mock(QuestRepository.class);
+            QuestListing quest = mock(QuestListing.class);
+            when(quest.status()).thenReturn(QuestListing.Status.ACCEPTED);
+            when(repository.find(1)).thenReturn(Optional.of(quest));
+            QuestActions actions = mock(QuestActions.class);
+            when(actions.releaseAssignment(eq(1L), eq(REQUEST), eq(PLAYER), anyLong()))
+                    .thenReturn(new QuestTransition(quest, false));
+            CommandSender sender = mock(CommandSender.class);
+            QuestControlCommand command = new QuestControlCommand(actions, repository, ignored -> player);
+            command.onCommand(sender, null, "usapo-event-bridge", questArgs("quest-user-abandon"));
+            verifyNoInteractions(actions);
+            verify(sender).sendMessage(QuestControlCommand.RESULT_PREFIX + REQUEST
+                    + "|1|world_restricted|accepted|new");
+            command.onCommand(sender, null, "usapo-event-bridge", questArgs("quest-abandon"));
+            verify(actions).releaseAssignment(eq(1L), eq(REQUEST), eq(PLAYER), anyLong());
+        }
+    }
+
+    @Test
+    void userAbandonPreservesOfflineAndCompletedReplayBehavior() {
+        for (boolean replay : List.of(false, true)) {
+            Player player = player("resource");
+            when(player.isOnline()).thenReturn(replay);
+            QuestRepository repository = mock(QuestRepository.class);
+            when(repository.isProcessed(1, REQUEST, "abandoned")).thenReturn(replay);
+            QuestListing quest = mock(QuestListing.class);
+            when(quest.status()).thenReturn(QuestListing.Status.OPEN);
+            QuestActions actions = mock(QuestActions.class);
+            when(actions.releaseAssignment(eq(1L), eq(REQUEST), eq(PLAYER), anyLong()))
+                    .thenReturn(new QuestTransition(quest, replay));
+            new QuestControlCommand(actions, repository, ignored -> player)
+                    .onCommand(mock(CommandSender.class), null, "usapo-event-bridge",
+                            questArgs("quest-user-abandon"));
+            verify(actions).releaseAssignment(eq(1L), eq(REQUEST), eq(PLAYER), anyLong());
+        }
+    }
+
     private static String[] questArgs(String operation) {
         if (operation.equals("quest-accept")) {
             return new String[] {operation, "1", PLAYER.toString(),
