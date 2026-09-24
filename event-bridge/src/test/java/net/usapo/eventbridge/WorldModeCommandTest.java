@@ -16,7 +16,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 final class WorldModeCommandTest {
-    private final WorldModeCommand command = new WorldModeCommand();
+    private final WorldModeMemory memory = mock(WorldModeMemory.class);
+    private final WorldModeCommand command = new WorldModeCommand(memory);
 
     @ParameterizedTest
     @EnumSource(value = GameMode.class, names = {"CREATIVE", "SURVIVAL"})
@@ -28,6 +29,7 @@ final class WorldModeCommandTest {
 
         assertEquals(expected, player.getGameMode());
         verify(player).setGameMode(expected);
+        verify(memory).rememberSelection(player);
         verify(player).sendMessage(expected == GameMode.CREATIVE
                 ? "クリエイティブに切り替えました。"
                 : "サバイバルに切り替えました。");
@@ -112,6 +114,7 @@ final class WorldModeCommandTest {
         verify(player).setGameMode(GameMode.SURVIVAL);
         verify(player).sendMessage("ゲームモードを切り替えられませんでした。管理者にご連絡ください。");
         verify(player, never()).sendMessage("サバイバルに切り替えました。");
+        verifyNoInteractions(memory);
     }
 
     @Test

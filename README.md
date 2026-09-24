@@ -250,10 +250,11 @@ different pre-created network name is required. Never publish TCP/25575.
 ## Additional world and inventory groups
 
 Multiverse-Core 5.8.1 exposes the existing world as `world_1` and the additional
-normal world, generated with seed `259`, as `world_2`. Only the normal
-`world_2` dimension uses creative mode; `world_1` and all four Nether/End
-dimensions remain survival. Enable `world.enforce-gamemode` so joining or
-changing worlds applies the destination's game mode (operators are not exempt
+normal world, generated with seed `259`, as `world_2`. All six dimensions have
+survival as their configured default. Only the normal `world_2` dimension
+allows players to select creative mode with `/mode`; `world_1` and all four
+Nether/End dimensions remain survival. Enable `world.enforce-gamemode` so
+joining or changing worlds applies the destination's game mode (operators are not exempt
 unless an explicit `mv.bypass.gamemode.<worldname>` permission is granted).
 These are
 Multiverse display/command aliases; the stored dimension keys and legacy names
@@ -272,8 +273,16 @@ key `minecraft:resource`). The dedicated `usapo.mode.use` permission defaults
 to true; it grants no OP, vanilla gamemode, target-player, adventure, or
 spectator privileges. All other dimensions, including both Nether/End pairs,
 reject this command even for operators. Existing administrative commands are
-unchanged. Multiverse still applies the destination's configured mode on
-login/world entry, so returning to `world_2` starts in creative again. Toggling
+unchanged. A world_2-only persistent player-data key remembers each player's
+last survival/creative choice. Rejoining the server or returning from another
+world restores that choice; a player without a remembered choice starts in
+survival. An existing player logging back into world_2 for the first time after
+this update imports their vanilla saved logout mode before Multiverse applies
+its default. Commands, departures, respawns, quits and clean server shutdowns
+preserve the selection; other worlds never overwrite it or restore creative.
+The plugin brackets Multiverse's NORMAL join/world-change handlers, with
+`gamemode-and-flight-enforce-delay: 0`; keep those priorities and that delay.
+Existing creative flight is preserved across login restoration. Toggling
 does not replace inventory, armor, offhand, Ender Chest, or experience and does
 not lift world-based economy restrictions. This command remains registered
 when activity bonuses are disabled. Installing its new plugin image requires
@@ -297,9 +306,10 @@ This is not complete economic isolation: Minecraft experience and ordinary
 activity/advancement rewards are still shared, as explicitly left outside this
 change. Do not silently change those policies or existing inventory profiles.
 
-For rollout, deploy both the Paper plugin and companion mc-bot before enabling
-creative mode. With players held offline and configurations backed up, use
-`mv modify resource set gamemode creative`, `mv config enforce-gamemode true`,
+For an initial economy-restriction rollout, deploy both the Paper plugin and
+companion mc-bot before allowing creative mode. The mode-memory update only
+requires the Paper plugin. With players held offline and configurations backed
+up, use `mv modify resource set gamemode survival`, `mv config enforce-gamemode true`,
 and `mv config gamemode-and-flight-enforce-delay 0`. Applying the game mode
 in the world-change event prevents a creative-mode tick in a survival world.
 Confirm the other five mode settings remain survival, the inventory groups and

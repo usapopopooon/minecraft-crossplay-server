@@ -21,6 +21,7 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     private WorldTravelConfirmation.SourceArea travelSourceArea = location -> null;
     private GatePromptSafety gatePromptSafety;
     private CyanGateOverlay cyanGateOverlay;
+    private WorldModeMemory worldModeMemory;
 
     @Override
     public void onEnable() {
@@ -196,7 +197,9 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
                     "Floodgate is unavailable; /gacha, /exchange, /market, and /quest remain available "
                             + "without Bedrock forms");
         }
-        WorldModeCommand worldModeCommand = new WorldModeCommand();
+        worldModeMemory = new WorldModeMemory(new NamespacedKey(this, "world_2_game_mode"));
+        getServer().getPluginManager().registerEvents(worldModeMemory, this);
+        WorldModeCommand worldModeCommand = new WorldModeCommand(worldModeMemory);
         PluginCommand mode = Objects.requireNonNull(getCommand("mode"));
         mode.setExecutor(worldModeCommand);
         mode.setTabCompleter(worldModeCommand);
@@ -293,6 +296,8 @@ public final class UsapoEventBridgePlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         travelConfirmationReady = false;
+        // Paper disables plugins before saving/disconnecting players on shutdown.
+        if (worldModeMemory != null) getServer().getOnlinePlayers().forEach(worldModeMemory::remember);
         if (cyanGateOverlay != null) cyanGateOverlay.close();
         if (experience != null) {
             experience.flushAll();

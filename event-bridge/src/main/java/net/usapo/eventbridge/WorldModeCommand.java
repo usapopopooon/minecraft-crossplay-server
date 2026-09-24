@@ -13,6 +13,11 @@ import org.jetbrains.annotations.NotNull;
 /** Self-only toggle for the normal world_2 dimension, never its Nether or End. */
 final class WorldModeCommand implements CommandExecutor, TabCompleter {
     private static final NamespacedKey WORLD_2 = NamespacedKey.minecraft("resource");
+    private final WorldModeMemory memory;
+
+    WorldModeCommand(WorldModeMemory memory) {
+        this.memory = memory;
+    }
 
     @Override
     public boolean onCommand(
@@ -51,6 +56,7 @@ final class WorldModeCommand implements CommandExecutor, TabCompleter {
             player.sendMessage("ゲームモードを切り替えられませんでした。管理者にご連絡ください。");
             return true;
         }
+        memory.rememberSelection(player);
         player.sendMessage(target == GameMode.CREATIVE
                 ? "クリエイティブに切り替えました。" : "サバイバルに切り替えました。");
         return true;
