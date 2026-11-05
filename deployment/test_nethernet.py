@@ -130,6 +130,19 @@ class NetherNetDeploymentTests(unittest.TestCase):
         self.assertIn("COPY paper-patches /usapo-nethernet-patches", dockerfile)
         self.assertIn("COPY nethernet-patches /usapo-nethernet-patches", dockerfile)
 
+    def test_legacy_signaling_keys_are_upserted(self):
+        # Existing Geyser 1245 configuration can omit both newer signaling keys.
+        # The parent map and mode exist, so preserve that map and insert its keys.
+        patch = json.loads((ROOT / "nethernet-patches/bedrock-transport.json").read_text())
+        operations = {}
+        for op in patch["ops"]:
+            operation, settings = next(iter(op.items()))
+            path = settings["path"] + ("." + settings["key"] if operation == "$put" else "")
+            operations[path] = operation
+        for key in ("advertise-addresses", "stun-discovery"):
+            with self.subTest(key=key):
+                self.assertEqual(operations["$.bedrock.signaling." + key], "$put")
+
     def test_relay_patch_changes_only_the_two_port_lists(self):
         lines = (ROOT / "deployment/minecraft-relay-ports.patch").read_text().splitlines()
         removed = [line[1:].strip() for line in lines if line.startswith("-") and not line.startswith("---")]
@@ -141,6 +154,53 @@ class NetherNetDeploymentTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("NETHERNET_TEST_IMAGE"), "Set NETHERNET_TEST_IMAGE for Docker patch integration")
 class PatchRuntimeTests(unittest.TestCase):
+    def test_real_helper_migrates_missing_legacy_signaling_keys(self):
+        # Key presence is the pseudo-oracle observed in the stopped 1245 config:
+        # signaling/mode and webrtc-port exist, but both new signaling keys do not.
+        # Values and preservation sentinels below are synthetic, not private data.
+        for missing in (("advertise-addresses", "stun-discovery"),
+                        ("advertise-addresses",), ("stun-discovery",)):
+            with self.subTest(missing=missing):
+                signaling = {"mode": "builtin", "advertise-addresses": ["198.51.100.5:19133"],
+                             "stun-discovery": True, "preserve-marker": "unchanged"}
+                for key in missing:
+                    signaling.pop(key)
+                fixture = {"bedrock": {"address": "0.0.0.0", "port": 19132,
+                    "transport": "raknet", "webrtc-port": 19132, "clone-remote-port": False,
+                    "signaling": signaling}, "java": {"auth-type": "online"},
+                    "advanced": {"bedrock": {"validate-bedrock-login": True,
+                        "use-haproxy-protocol": False}, "java": {"use-haproxy-protocol": False}},
+                    "preserve-top-level": "unchanged"}
+                with tempfile.TemporaryDirectory(prefix="nethernet-legacy-patch-") as directory:
+                    path = Path(directory) / "plugins/Geyser-Spigot/config.yml"
+                    path.parent.mkdir(parents=True)
+                    path.write_text(json.dumps(fixture))
+                    args = ["docker", "run", "--rm", "--network=none", "--entrypoint", "mc-image-helper",
+                        "-v", f"{directory}:/data", "-v", f"{ROOT / 'nethernet-patches'}:/patches:ro",
+                        "-e", "CFG_BEDROCK_WEBRTC_ADDRESS=192.0.2.10:19133", os.environ["NETHERNET_TEST_IMAGE"]]
+                    for attempt in range(2):
+                        result = subprocess.run(args + ["patch", "/patches"], capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        current = hashlib.sha256(path.read_bytes()).hexdigest()
+                        if attempt == 0:
+                            initial = current
+                        else:
+                            self.assertEqual(initial, current)
+                    expected = {"$.bedrock.transport": "both", "$.bedrock.port": "19132",
+                        "$.bedrock.webrtc-port": "19133", "$.bedrock.clone-remote-port": "false",
+                        "$.bedrock.signaling.mode": "builtin",
+                        "$.bedrock.signaling.advertise-addresses[0]": "192.0.2.10:19133",
+                        "$.bedrock.signaling.advertise-addresses.length()": "1",
+                        "$.bedrock.signaling.stun-discovery": "false", "$.bedrock.address": "0.0.0.0",
+                        "$.java.auth-type": "online", "$.advanced.bedrock.validate-bedrock-login": "true",
+                        "$.advanced.bedrock.use-haproxy-protocol": "false",
+                        "$.advanced.java.use-haproxy-protocol": "false",
+                        "$.bedrock.signaling.preserve-marker": "unchanged", "$.preserve-top-level": "unchanged"}
+                    for query, value in expected.items():
+                        result = subprocess.run(args + ["yaml-path", "--file", "/data/plugins/Geyser-Spigot/config.yml", query],
+                                                check=True, capture_output=True, text=True)
+                        self.assertEqual(result.stdout.strip(), value, query)
+
     def test_real_helper_preserves_settings_and_interpolates_idempotently(self):
         fixture = {"bedrock": {"address": "0.0.0.0", "port": 19132,
             "transport": "raknet", "clone-remote-port": False,

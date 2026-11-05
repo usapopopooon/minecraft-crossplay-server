@@ -6,7 +6,7 @@
     {"$put": {"path": "$.bedrock", "key": "webrtc-port", "value": 19133}},
     {"$set": {"path": "$.bedrock.clone-remote-port", "value": false}},
     {"$set": {"path": "$.bedrock.signaling.mode", "value": "builtin"}},
-    {"$set": {"path": "$.bedrock.signaling.advertise-addresses", "value": "${CFG_BEDROCK_WEBRTC_ADDRESS}", "value-type": "list of auto"}},
-    {"$set": {"path": "$.bedrock.signaling.stun-discovery", "value": false}}
+    {"$put": {"path": "$.bedrock.signaling", "key": "advertise-addresses", "value": "${CFG_BEDROCK_WEBRTC_ADDRESS}", "value-type": "list of auto"}},
+    {"$put": {"path": "$.bedrock.signaling", "key": "stun-discovery", "value": false}}
   ]
 }

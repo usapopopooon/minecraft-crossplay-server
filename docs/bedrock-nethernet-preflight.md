@@ -72,8 +72,9 @@ version/authentication drift. Rendering/validation applies no changes.
 The scoped patch preserves the rest of the existing Geyser file. It sets
 `bedrock.transport: both`, `port: 19132`, `webrtc-port: 19133`,
 `clone-remote-port: false`, `signaling.mode: builtin`, the one public advertised
-endpoint, and `signaling.stun-discovery: false`. `$put` introduces the previously
-absent WebRTC port; `value-type: list of auto` expands the advertised endpoint
+endpoint, and `signaling.stun-discovery: false`. `$put` adds or updates the
+WebRTC port and the two signaling keys without replacing their parent maps;
+`value-type: list of auto` expands the advertised endpoint
 as an actual YAML sequence. Raw nested JSON strings do not receive environment
 interpolation in the pinned helper, so do not replace this with a literal array
 containing `${CFG_BEDROCK_WEBRTC_ADDRESS}`.
@@ -123,7 +124,7 @@ Provider-side port restrictions and the unopened external path remain untested.
 
 ## Verification and remaining release gates
 
-- All **13** new deployment tests passed, covering both Compose entry points, version/authentication
+- Deployment tests cover both Compose entry points, version/authentication
   drift and port/address validation, including the actual pinned image helper
   applying the patch twice to a disposable file. The new key, expanded single
   address, idempotence, Floodgate/authentication sentinels and unrelated values
@@ -162,6 +163,26 @@ handshake or live ICE/DTLS data channel. The test socket table did not show that
 UDP port before a peer was created; the upstream implementation creates the
 WebRTC peer lazily when SDP arrives. Do not report the data path as tested.
 
+### Production startup correction, 2026-11-05
+
+The first authorized deployment built successfully but did not reach Minecraft
+startup. Helper 1.64.1 rejected `$set` for the absent
+`bedrock.signaling.advertise-addresses` key. Read-only comparison with the
+stopped backup established that both `advertise-addresses` and `stun-discovery`
+were absent, while their parent map, `mode`, and `webrtc-port` already existed.
+The initial synthetic fixture incorrectly assumed both signaling keys existed.
+
+The correction changes only those two operations to `$put`; all seven logical
+target fields, values, component pins, authentication settings and relay rules
+are unchanged. New tests reproduce the observed missing-key shape without
+copying private configuration values. They cover both keys missing, either key
+missing alone, repeated application, interpolation and preservation of unrelated
+values. The unchanged helper failed all three migration cases before the fix.
+The original runtime test remains unchanged. There are now 16 tests: 14 normal
+contract checks and two Docker helper tests; runtime tests need the environment
+variable shown below. A finished deployment must still pass service readiness,
+stopped-backup comparison and public status checks before reopening admission.
+
 Before any release, complete the Paper preflight's space planning, announced
 maintenance, verified full stopped-server backup, exact pushed-SHA/GitHub CI and
 targeted deployment checks. Preserve all worlds, inventory groups, XP/economy
@@ -196,6 +217,6 @@ docker build --tag minecraft-paper262-nethernet-prepared:20261104 .
 git diff --check
 ```
 
-Without `NETHERNET_TEST_IMAGE`, CI runs the twelve Compose/contract tests and skips
-the one Docker patch integration test. The integration test was run locally;
+Without `NETHERNET_TEST_IMAGE`, CI runs the 14 Compose/contract tests and skips
+the two Docker patch integration tests. The integration tests must run locally;
 the full existing CI-equivalent checks are still required before a future push.
