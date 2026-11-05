@@ -1,0 +1,12 @@
+{
+  "file": "/data/plugins/Geyser-Spigot/config.yml",
+  "ops": [
+    {"$set": {"path": "$.bedrock.transport", "value": "both"}},
+    {"$set": {"path": "$.bedrock.port", "value": 19132}},
+    {"$put": {"path": "$.bedrock", "key": "webrtc-port", "value": 19133}},
+    {"$set": {"path": "$.bedrock.clone-remote-port", "value": false}},
+    {"$set": {"path": "$.bedrock.signaling.mode", "value": "builtin"}},
+    {"$set": {"path": "$.bedrock.signaling.advertise-addresses", "value": "${CFG_BEDROCK_WEBRTC_ADDRESS}", "value-type": "list of auto"}},
+    {"$set": {"path": "$.bedrock.signaling.stun-discovery", "value": false}}
+  ]
+}

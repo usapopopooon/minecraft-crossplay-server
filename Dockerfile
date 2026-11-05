@@ -15,6 +15,10 @@ RUN mvn --batch-mode --no-transfer-progress verify
 FROM itzg/minecraft-server:2026.8.0@sha256:e3335993929a1565f73c30b2041bcbc1473fc9c406fdd5a0d0ea24c08ef73320
 
 COPY paper-patches /usapo-paper-patches
+# Only the explicit NetherNet Compose overlay selects this directory.
+# Reuse the canonical Paper patches so neither mode drops existing settings.
+COPY paper-patches /usapo-nethernet-patches
+COPY nethernet-patches /usapo-nethernet-patches
 COPY --from=event-bridge-build /build/target/usapo-event-bridge.jar /plugins/usapo-event-bridge.jar
 COPY --from=inventories-build /build/target/multiverse-inventories-5.3.6-isolated.jar /plugins/usapo-multiverse-inventories.jar
 COPY portal-packs/dist/cyan-portal-bedrock-v1.mcpack /plugins/Geyser-Spigot/packs/cyan-portal-bedrock-v1.mcpack

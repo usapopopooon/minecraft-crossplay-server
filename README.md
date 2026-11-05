@@ -2,11 +2,29 @@
 
 Paper, Geyser, and Floodgate configuration for the Chill Cafe cross-play server.
 
-Paper 26.2 build 92 and itzg/minecraft-server 2026.8.0 remain pinned while
-Enderman and experience behavior is investigated. Geyser 2.11.3 build 1245
-supports Bedrock 26.51; Floodgate 2.2.5 build 141, ViaVersion 5.11.0,
-ViaBackwards 5.11.0, Multiverse-Core 5.8.1, Multiverse-Portals 5.3.0, and
-Multiverse-NetherPortals 5.1.0 are also pinned. Startup cleanup is limited to
+The conservative upgrade candidate pins Paper **26.2 build 135** and retains
+all existing plugin versions and connection settings. This is preparation only:
+the production server was still running Paper 26.2 build 92 when inspected on
+2026-11-04. Do not push or deploy this candidate before completing the
+[upgrade preflight](docs/paper-upgrade-preflight.md) and a verified full backup.
+Paper 26.3 was tested but is held because the current Geyser fails to initialize
+on it; updating Geyser also requires a separately approved Bedrock transport
+plan. That additional preparation is now available as the explicit
+`docker-compose.nethernet.yml` overlay: it retains Paper 26.2 build 135, updates
+Geyser to 2.12.1 build 1286 and ViaVersion/ViaBackwards to 5.12.2, and adds
+NetherNet alongside legacy RakNet. It is **not active in production** and is not
+selected by the base Compose file. See the
+[Bedrock transport preflight](docs/bedrock-nethernet-preflight.md) before selecting
+it; `docker-compose.nethernet.coolify.yml` is the tested single-file equivalent
+for Coolify. The public relay and firewall also require an approved maintenance window.
+The earlier Enderman/experience behavior
+investigation is not declared resolved by a dependency update.
+
+itzg/minecraft-server 2026.8.0 remains unchanged. In the base Compose file,
+Geyser 2.11.3 build 1245
+(Bedrock through 26.51), Floodgate 2.2.5 build 141, ViaVersion/ViaBackwards 5.11.0,
+Multiverse-Core 5.8.1, Multiverse-Portals 5.3.0, and Multiverse-NetherPortals
+5.1.0 are retained. Startup cleanup is limited to
 those seven plugin JAR families and the replaced official inventory JAR so
 persisted copies are replaced by the pinned artifacts; unrelated plugins are
 not removed.

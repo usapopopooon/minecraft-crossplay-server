@@ -1,0 +1,87 @@
+# Prepared single-file Coolify candidate; NOT active in production.
+# Generated from docker-compose.yml + docker-compose.nethernet.yml without
+# variable interpolation or local path resolution. Equivalence is tested.
+networks:
+  minecraft-control:
+    external: true
+    name: ${MINECRAFT_CONTROL_NETWORK:-minecraft-control}
+services:
+  minecraft:
+    build:
+      context: .
+      pull: true
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+    environment:
+      - BROADCAST_RCON_TO_OPS=FALSE
+      - CREATE_CONSOLE_IN_PIPE=TRUE
+      - DIFFICULTY=normal
+      - ENABLE_RCON=TRUE
+      - ENABLE_WHITELIST=TRUE
+      - ENFORCE_SECURE_PROFILE=FALSE
+      - ENFORCE_WHITELIST=TRUE
+      - EULA=TRUE
+      - MAX_PLAYERS=20
+      - MEMORY=6G
+      - MODE=survival
+      - |
+        MODRINTH_PROJECTS=viaversion:Fkfcr89K
+        viabackwards:WFO37e8T
+      - MOTD=${MINECRAFT_MOTD:-Chill Cafe cross-play server}
+      - ONLINE_MODE=TRUE
+      - OVERRIDE_WHITELIST=FALSE
+      - PAPER_BUILD=135
+      - PATCH_DEFINITIONS=/usapo-nethernet-patches
+      - |
+        PLUGINS=https://download.geysermc.org/v2/projects/geyser/versions/2.12.1/builds/1286/downloads/spigot
+        https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/141/downloads/spigot
+        https://github.com/Multiverse/Multiverse-Core/releases/download/5.8.1/multiverse-core-5.8.1.jar
+        https://github.com/Multiverse/Multiverse-Portals/releases/download/5.3.0/multiverse-portals-5.3.0.jar
+        https://github.com/Multiverse/Multiverse-NetherPortals/releases/download/5.1.0/multiverse-netherportals-5.1.0.jar
+      - RCON_PASSWORD=${MINECRAFT_RCON_PASSWORD:?Set the Minecraft RCON password}
+      - REMOVE_OLD_MODS=TRUE
+      - REMOVE_OLD_MODS_DEPTH=1
+      - REMOVE_OLD_MODS_INCLUDE=Geyser-Spigot.jar,floodgate-spigot.jar,ViaVersion-*.jar,ViaBackwards-*.jar,multiverse-core-*.jar,multiverse-portals-*.jar,multiverse-netherportals-*.jar,multiverse-inventories-*.jar
+      - SERVER_NAME=${MINECRAFT_SERVER_NAME:-Chill Cafe cross-play server}
+      - SIMULATION_DISTANCE=4
+      - SPAWN_PROTECTION=0
+      - TYPE=PAPER
+      - TZ=Asia/Tokyo
+      - USAPO_BONUSES_ENABLED=${USAPO_BONUSES_ENABLED:-true}
+      - USE_AIKAR_FLAGS=TRUE
+      - VERSION=26.2
+      - VIEW_DISTANCE=16
+      - CFG_BEDROCK_WEBRTC_ADDRESS=${MINECRAFT_BEDROCK_PUBLIC_IPV4:?Set the verified public relay IPv4}:19133
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_period: 3m
+      test:
+        - CMD
+        - mc-health
+      timeout: 10s
+    image: minecraft-crossplay-server:local
+    networks:
+      default: null
+      minecraft-control: null
+    ports:
+      - ${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:25565:25565/tcp
+      - ${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/udp
+      - ${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/tcp
+      - ${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19133:19133/udp
+    restart: unless-stopped
+    stdin_open: true
+    stop_grace_period: 2m
+    tty: true
+    volumes:
+      - source: minecraft-data
+        target: /data
+        type: volume
+        volume: {}
+volumes:
+  minecraft-data:
+    name: minecraft-crossplay-data

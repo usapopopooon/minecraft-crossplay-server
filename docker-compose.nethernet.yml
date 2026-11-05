@@ -1,0 +1,19 @@
+# Opt-in, preparation-only companion to docker-compose.yml.
+# Complete docs/bedrock-nethernet-preflight.md before production activation.
+services:
+  minecraft:
+    environment:
+      PATCH_DEFINITIONS: /usapo-nethernet-patches
+      CFG_BEDROCK_WEBRTC_ADDRESS: "${MINECRAFT_BEDROCK_PUBLIC_IPV4:?Set the verified public relay IPv4}:19133"
+      PLUGINS: |
+        https://download.geysermc.org/v2/projects/geyser/versions/2.12.1/builds/1286/downloads/spigot
+        https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/141/downloads/spigot
+        https://github.com/Multiverse/Multiverse-Core/releases/download/5.8.1/multiverse-core-5.8.1.jar
+        https://github.com/Multiverse/Multiverse-Portals/releases/download/5.3.0/multiverse-portals-5.3.0.jar
+        https://github.com/Multiverse/Multiverse-NetherPortals/releases/download/5.1.0/multiverse-netherportals-5.1.0.jar
+      MODRINTH_PROJECTS: |
+        viaversion:Fkfcr89K
+        viabackwards:WFO37e8T
+    ports:
+      - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/tcp"
+      - "${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19133:19133/udp"

@@ -16,6 +16,8 @@ jobs:
         run: |
           python3 -m unittest discover -s portal-packs -p 'test_*.py' -v
           python3 portal-packs/build.py --check
+      - name: Verify opt-in Bedrock transport configuration
+        run: python3 -m unittest discover -s deployment -p 'test_*.py' -v
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
