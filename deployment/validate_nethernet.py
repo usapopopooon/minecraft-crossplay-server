@@ -8,6 +8,13 @@ import sys
 
 def validate(config, *, allow_test_address=False):
     service = config["services"]["minecraft"]
+    control_network = config.get("networks", {}).get("minecraft-control", {})
+    if ("minecraft-control" not in service.get("networks", {})
+            or not isinstance(control_network, dict)
+            or control_network.get("external") is not True
+            or not isinstance(control_network.get("name"), str)
+            or not control_network["name"].strip()):
+        raise ValueError("The shared external Minecraft control network must remain attached")
     env = service["environment"]
     endpoint = env.get("CFG_BEDROCK_WEBRTC_ADDRESS", "")
     host, separator, port = endpoint.rpartition(":")
@@ -64,7 +71,7 @@ def main():
         validate(json.load(sys.stdin), allow_test_address=args.allow_test_address)
     except (ValueError, KeyError, TypeError):
         # Do not echo the rendered configuration: it includes the RCON password.
-        print("NetherNet preflight failed: check address, pins, admission settings and ports.",
+        print("NetherNet preflight failed: check address, pins, admission settings, ports and networks.",
               file=sys.stderr)
         return 1
     print("NetherNet Compose preflight passed (no changes applied).")

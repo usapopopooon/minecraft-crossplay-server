@@ -3,14 +3,32 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from validate_nethernet import validate
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def coolify_460_service_networks(networks):
+    # Characterization oracle: installed Coolify 4.6.0 applicationParser,
+    # bootstrap/helpers/parsers.php:1775-1788. Its string/array-only loop drops
+    # null map values. These cases were also reproduced with its PHP collect().
+    # https://github.com/coollabsio/coolify/blob/0becfba9113063336b09860579627fd218cb3fc4/bootstrap/helpers/parsers.php#L1775
+    result = {}
+    entries = enumerate(networks) if isinstance(networks, list) else networks.items()
+    for key, value in entries:
+        if isinstance(value, str):
+            result[value] = None
+        elif isinstance(value, (dict, list)):
+            result[key] = value
+    result["application-network"] = None
+    return result
 
 
 def compose(*, overlay=True, public_ip="192.0.2.10", single_file=False):
@@ -72,6 +90,57 @@ class NetherNetDeploymentTests(unittest.TestCase):
         for value in (None, ""):
             with self.subTest(value=value):
                 self.assertNotEqual(compose(single_file=True, public_ip=value).returncode, 0)
+
+    def test_coolify_network_parser_characterization(self):
+        cases = (
+            (["default", "minecraft-control"],
+             {"default": None, "minecraft-control": None, "application-network": None}),
+            ({"default": None, "minecraft-control": None}, {"application-network": None}),
+            ({"default": {}, "minecraft-control": {"aliases": ["minecraft"]}},
+             {"default": {}, "minecraft-control": {"aliases": ["minecraft"]},
+              "application-network": None}),
+        )
+        for declared, expected in cases:
+            with self.subTest(declared=declared):
+                self.assertEqual(coolify_460_service_networks(declared), expected)
+
+    def test_single_file_preserves_shared_network_through_coolify(self):
+        # Check the source form BEFORE Docker Compose normalizes list and null
+        # map to the same object, concealing this Coolify-specific regression.
+        source = (ROOT / "docker-compose.nethernet.coolify.yml").read_text()
+        blocks = re.findall(r"^    networks:\n((?:      [^\n]*\n)+)", source, re.MULTILINE)
+        self.assertEqual(len(blocks), 1)
+        lines = blocks[0].splitlines()
+        self.assertEqual(lines, ["      - default", "      - minecraft-control"])
+        declared = [line.strip()[2:] for line in lines]
+        self.assertEqual(set(coolify_460_service_networks(declared)),
+                         {"default", "minecraft-control", "application-network"})
+
+    def test_shared_control_network_is_required(self):
+        for drift in ("membership", "definition", "not_external", "empty_name"):
+            with self.subTest(drift=drift):
+                candidate = copy.deepcopy(self.candidate)
+                if drift == "membership":
+                    candidate["services"]["minecraft"]["networks"].pop("minecraft-control")
+                elif drift == "definition":
+                    candidate["networks"].pop("minecraft-control")
+                elif drift == "not_external":
+                    candidate["networks"]["minecraft-control"]["external"] = False
+                else:
+                    candidate["networks"]["minecraft-control"]["name"] = ""
+                with self.assertRaises(ValueError):
+                    validate(candidate, allow_test_address=True)
+
+    def test_shared_control_network_name_override_is_preserved(self):
+        with patch.dict(os.environ, {"MINECRAFT_CONTROL_NETWORK": "diagnostic-shared-control"}):
+            result = compose(single_file=True)
+        self.assertEqual(result.returncode, 0)
+        candidate = json.loads(result.stdout)
+        self.assertIn("minecraft-control", candidate["services"]["minecraft"]["networks"])
+        self.assertEqual(candidate["networks"]["minecraft-control"]["name"],
+                         "diagnostic-shared-control")
+        self.assertIs(candidate["networks"]["minecraft-control"]["external"], True)
+        validate(candidate, allow_test_address=True)
 
     def test_missing_or_empty_public_ip_blocks_rendering(self):
         for value in (None, ""):

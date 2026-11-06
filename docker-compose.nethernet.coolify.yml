@@ -65,9 +65,10 @@ services:
         - mc-health
       timeout: 10s
     image: minecraft-crossplay-server:local
+    # Keep list syntax: Coolify 4.6 drops null-valued service network maps.
     networks:
-      default: null
-      minecraft-control: null
+      - default
+      - minecraft-control
     ports:
       - ${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:25565:25565/tcp
       - ${MINECRAFT_BIND_IP:?Set MINECRAFT_BIND_IP}:19132:19132/udp
